@@ -1,0 +1,38 @@
+-- ##########################################################
+-- #               GROUP 10: CONTENT MANAGEMENT           #
+-- #  Manages structured content, media uploads, and     #
+-- #  announcements for the platform.                    #
+-- ##########################################################
+
+-- Content Categories Table (Organizes Blog & Announcement Content)
+CREATE TABLE content_categories (
+    category_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    category_name VARCHAR(100) UNIQUE NOT NULL
+);
+
+-- Articles Table (Admin-Only Posts, Announcements, and Updates)
+CREATE TABLE articles (
+    article_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    author_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    category_id UUID REFERENCES content_categories(category_id) ON DELETE SET NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    is_pinned BOOLEAN DEFAULT FALSE, -- Used to pin important posts
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Media Uploads Table (For Images, Videos, and Other Content)
+CREATE TABLE media (
+    media_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    article_id UUID REFERENCES articles(article_id) ON DELETE CASCADE,
+    media_url TEXT NOT NULL, -- Links to uploaded content
+    media_type VARCHAR(50) CHECK (media_type IN ('image', 'video', 'gif'))
+);
+
+CREATE TABLE article_translations (
+    translation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    article_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    language VARCHAR(10) NOT NULL,
+    translated_title VARCHAR(255) NOT NULL,
+    translated_content TEXT NOT NULL
+);

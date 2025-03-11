@@ -1,0 +1,61 @@
+-- ##########################################################
+-- #            GROUP 9: ANALYTICS & REPORTING            #
+-- #  Tracks user behavior, subscription trends, sales,  #
+-- #  and search activity for better decision-making.    #
+-- ##########################################################
+
+-- User Activity Logs Table (Tracks Key User Actions)
+CREATE TABLE user_activity_logs (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    activity_type VARCHAR(255) NOT NULL, -- Example: 'login', 'purchase', 'subscription_renewal'
+    metadata JSONB DEFAULT '{}', -- Stores additional info (e.g., {"product_id": "123", "action": "added_to_cart"})
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Subscription Metrics Table (Tracks Subscription Trends)
+CREATE TABLE subscription_metrics (
+    metric_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    plan_id UUID REFERENCES subscription_plans(plan_id) ON DELETE CASCADE,
+    total_subscribers INTEGER NOT NULL CHECK (total_subscribers >= 0),
+    active_subscribers INTEGER NOT NULL CHECK (active_subscribers >= 0),
+    cancellations INTEGER NOT NULL CHECK (cancellations >= 0),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sales Reports Table (Tracks Revenue & Order Volume)
+CREATE TABLE sales_reports (
+    report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    total_revenue DECIMAL(15,2) NOT NULL CHECK (total_revenue >= 0),
+    total_orders INTEGER NOT NULL CHECK (total_orders >= 0),
+    best_selling_product UUID REFERENCES products(product_id) NULL,
+    highest_spending_user UUID REFERENCES users(user_id) NULL,
+    report_date DATE NOT NULL UNIQUE
+);
+
+-- User Engagement Stats (Tracks Site Interactions)
+CREATE TABLE user_engagement_stats (
+    engagement_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    pages_viewed INTEGER NOT NULL CHECK (pages_viewed >= 0),
+    time_spent_seconds INTEGER NOT NULL CHECK (time_spent_seconds >= 0),
+    interactions INTEGER NOT NULL CHECK (interactions >= 0),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Search History Table (Tracks What Users Search)
+CREATE TABLE search_history (
+    search_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    search_query TEXT NOT NULL,
+    search_results_count INTEGER NOT NULL CHECK (search_results_count >= 0),
+    searched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Search Queries Table (Aggregates Search Trends)
+CREATE TABLE search_queries (
+    query_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    search_query TEXT UNIQUE NOT NULL,
+    total_searches INTEGER NOT NULL CHECK (total_searches >= 0),
+    last_searched TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

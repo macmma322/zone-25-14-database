@@ -1,0 +1,100 @@
+-- ##########################################################
+-- #                 GROUP 5: SOCIAL FEATURES             #
+-- #  Handles user friendships, messages, reactions,     #
+-- #  blog posts, comments, and notifications.           #
+-- ##########################################################
+
+-- Friendships Table
+CREATE TABLE friends (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    friend_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Friend Requests Table
+CREATE TABLE friend_requests (
+    request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    status VARCHAR(20) CHECK (status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Conversations (Group or 1-on-1 Chats)
+CREATE TABLE conversations (
+    conversation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    is_group_chat BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Conversation Members Table (Users in a Chat)
+CREATE TABLE conversation_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Messages Table (Tracks Messages in Conversations)
+CREATE TABLE messages (
+    message_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    message_text TEXT NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Custom Reaction Sets (Users Can Create Their Own Reaction Packs)
+CREATE TABLE reaction_sets (
+    set_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    set_name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Default Message Reactions (Like, Love, Haha, etc.)
+CREATE TABLE message_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID REFERENCES messages(message_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction TEXT NOT NULL CHECK (reaction IN ('like', 'heart', 'haha', 'sad', 'angry')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Blog Posts (Admin-Only Announcements & Updates)
+CREATE TABLE blog_posts (
+    post_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    author_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Comments on Blog Posts
+CREATE TABLE post_comments (
+    comment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    comment_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Reactions on Blog Posts
+CREATE TABLE post_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction TEXT NOT NULL CHECK (reaction IN ('like', 'heart', 'haha', 'sad', 'angry')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Notifications Table
+CREATE TABLE notifications (
+    notification_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

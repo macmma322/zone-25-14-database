@@ -1,0 +1,36 @@
+-- ##########################################################
+-- #              GROUP 11: MARKETING & DISCOUNTS         #
+-- #  Manages promotional campaigns, discount codes,     #
+-- #  and user engagement incentives.                    #
+-- ##########################################################
+
+-- Promotions Table (Tracks Active Promotions)
+CREATE TABLE promotions (
+    promotion_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    promotion_name VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    discount_percentage DECIMAL(5,2) NOT NULL CHECK (discount_percentage BETWEEN 1 AND 100),
+    start_date TIMESTAMP NOT NULL,
+    end_date TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Discount Codes Table (Manages Discount Coupons)
+CREATE TABLE discount_codes (
+    code_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    promotion_id UUID REFERENCES promotions(promotion_id) ON DELETE SET NULL,
+    discount_amount DECIMAL(10,2) NOT NULL CHECK (discount_amount > 0),
+    max_usage INTEGER NOT NULL CHECK (max_usage >= 1),
+    current_usage INTEGER DEFAULT 0 CHECK (current_usage >= 0),
+    expiration_date TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User Discount Usage Table (Tracks Who Used Discounts)
+CREATE TABLE user_discount_usage (
+    usage_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    code_id UUID REFERENCES discount_codes(code_id) ON DELETE CASCADE,
+    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

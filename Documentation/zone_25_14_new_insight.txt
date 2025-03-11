@@ -1,0 +1,855 @@
+-- Enable necessary PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- For encryption
+
+--------------------------------------------------------
+-- 🔹 ENUM for User Roles
+--------------------------------------------------------
+CREATE TYPE user_role AS ENUM ('Explorer', 'Supporter', 'Elite Member', 'Legend', 'Ultimate', 
+                               'Moderator', 'Store Chief', 'Hype Lead', 'Founder');
+
+--------------------------------------------------------
+-- 🔹 User Roles & Levels Table
+--------------------------------------------------------
+CREATE TABLE user_roles_levels (
+    role_level_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    role_name user_role UNIQUE NOT NULL,
+    required_points INTEGER DEFAULT 0 CHECK (required_points >= 0),
+    discount_percentage DECIMAL(5,2) DEFAULT 0.00 CHECK (discount_percentage BETWEEN 0 AND 100),
+    is_staff BOOLEAN DEFAULT FALSE,
+    permissions JSONB DEFAULT '{}' -- Stores detailed role permissions
+);
+
+-- Insert Default Roles & Levels
+INSERT INTO user_roles_levels (role_name, required_points, discount_percentage, is_staff, permissions) VALUES 
+('Explorer', 0, 0.00, FALSE, '{}'),
+('Supporter', 500, 5.00, FALSE, '{}'),
+('Elite Member', 1500, 10.00, FALSE, '{}'),
+('Legend', 3000, 15.00, FALSE, '{}'),
+('Ultimate', 5000, 20.00, FALSE, '{}'),
+('Moderator', 0, 25.00, TRUE, '{"can_ban_users": true, "manage_posts": true}'),
+('Store Chief', 0, 30.00, TRUE, '{"manage_orders": true, "manage_inventory": true}'),
+('Hype Lead', 0, 30.00, TRUE, '{"create_events": true}'),
+('Founder', 0, 30.00, TRUE, '{"full_access": true}');
+
+--------------------------------------------------------
+-- 🔹 Users Table
+--------------------------------------------------------
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password TEXT NOT NULL, -- Assume bcrypt-hashed
+    email TEXT UNIQUE NOT NULL, -- Will be stored encrypted
+    phone TEXT NULL, -- Will be stored encrypted
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    biography TEXT,
+    profile_picture TEXT,
+    role_level_id UUID REFERENCES user_roles_levels(role_level_id) DEFAULT 
+        (SELECT role_level_id FROM user_roles_levels WHERE role_name = 'Explorer'),
+    store_credit DECIMAL(10,2) DEFAULT 0 CHECK (store_credit >= 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Encrypt email & phone before inserting
+CREATE OR REPLACE FUNCTION encrypt_sensitive_data()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.email := PGP_SYM_ENCRYPT(NEW.email, 'my_secret_key');
+    NEW.phone := PGP_SYM_ENCRYPT(NEW.phone, 'my_secret_key');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER encrypt_user_data
+BEFORE INSERT OR UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION encrypt_sensitive_data();
+
+--------------------------------------------------------
+-- 🔹 Linked Accounts (OAuth Logins)
+--------------------------------------------------------
+CREATE TYPE account_platform AS ENUM ('reddit', 'facebook', 'google', 'youtube', 'blizzard', 'riot', 'epic');
+
+CREATE TABLE linked_accounts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    platform account_platform NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    profile_url TEXT NOT NULL,
+    access_token TEXT NULL, -- Store securely if needed
+    refresh_token TEXT NULL, -- Optional OAuth refresh
+    linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add an index for fast lookups
+CREATE INDEX idx_linked_accounts_user ON linked_accounts (user_id);
+
+--------------------------------------------------------
+-- 🔹 Saved Cards (Encrypted Storage for Payment Info)
+--------------------------------------------------------
+CREATE TABLE saved_cards (
+    card_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    encrypted_card_number TEXT NOT NULL,
+    encrypted_expiry_date TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Encrypt card details before storing
+CREATE OR REPLACE FUNCTION encrypt_card_data()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.encrypted_card_number := PGP_SYM_ENCRYPT(NEW.encrypted_card_number, 'card_secret_key');
+    NEW.encrypted_expiry_date := PGP_SYM_ENCRYPT(NEW.encrypted_expiry_date, 'card_secret_key');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER encrypt_card_info
+BEFORE INSERT OR UPDATE ON saved_cards
+FOR EACH ROW EXECUTE FUNCTION encrypt_card_data();
+
+
+-- Enable necessary PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ENUM for billing cycles
+CREATE TYPE billing_cycle AS ENUM ('monthly', 'quarterly', 'yearly');
+
+-- ENUM for payment status
+CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
+
+-- ENUM for mystery box shipment status
+CREATE TYPE shipment_status AS ENUM ('pending', 'shipped', 'delivered', 'failed');
+
+--------------------------------------------------------
+-- 🔹 Subscription Niches (Users can subscribe to 1-7 niches)
+--------------------------------------------------------
+CREATE TABLE subscription_niches (
+    niche_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) UNIQUE NOT NULL
+);
+
+-- Insert 7 Default Niches
+INSERT INTO subscription_niches (name) VALUES 
+('OtakuSquad'),
+('StoikrClub'),
+('WD Crew'),
+('PerOs Pack'),
+('CritHit Team'),
+('The Grid Opus'),
+('The Syndicate');
+
+--------------------------------------------------------
+-- 🔹 Subscription Plans (Each niche has different plans)
+--------------------------------------------------------
+CREATE TABLE subscription_plans (
+    plan_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    niche_id UUID REFERENCES subscription_niches(niche_id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    base_price DECIMAL(10,2) NOT NULL CHECK (base_price > 0),
+    billing_cycle billing_cycle NOT NULL DEFAULT 'monthly',
+    perks JSONB DEFAULT '{}', -- Example: { "double_xp": true, "free_shipping": true }
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert Example Plans for Each Niche (Monthly)
+INSERT INTO subscription_plans (niche_id, name, base_price, billing_cycle, perks, is_active)
+SELECT niche_id, 'Monthly Plan', 9.99, 'monthly', '{"double_xp": false, "free_shipping": false}', TRUE FROM subscription_niches;
+
+--------------------------------------------------------
+-- 🔹 User Subscriptions (A user can have multiple subscriptions)
+--------------------------------------------------------
+CREATE TABLE user_subscriptions (
+    subscription_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    plan_id UUID REFERENCES subscription_plans(plan_id) ON DELETE CASCADE,
+    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    duration_months INTEGER CHECK (duration_months IN (1, 3, 6, 12)),
+    end_date TIMESTAMP GENERATED ALWAYS AS (start_date + (duration_months * INTERVAL '1 month')) STORED,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+--------------------------------------------------------
+-- 🔹 Payment Transactions (Stores payments for subscriptions)
+--------------------------------------------------------
+CREATE TABLE payment_transactions (
+    transaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    total_amount DECIMAL(10,2) NOT NULL CHECK (total_amount > 0),
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    payment_status payment_status DEFAULT 'pending',
+    payment_method VARCHAR(50) NOT NULL, -- Example: "Credit Card", "PayPal"
+    applied_discount DECIMAL(5,2) DEFAULT 0.00, -- Stores bulk subscription discounts
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Linking Payments to Subscriptions (Multi-subscription payments)
+--------------------------------------------------------
+CREATE TABLE payment_subscription_links (
+    link_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    transaction_id UUID REFERENCES payment_transactions(transaction_id) ON DELETE CASCADE,
+    subscription_id UUID REFERENCES user_subscriptions(subscription_id) ON DELETE CASCADE
+);
+
+--------------------------------------------------------
+-- 🔹 Bulk Subscription Discounts (Applies auto discounts for multiple niches)
+--------------------------------------------------------
+CREATE TABLE bulk_subscription_discounts (
+    discount_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    min_niches INTEGER CHECK (min_niches > 0),
+    max_niches INTEGER CHECK (max_niches > 0),
+    discount_percentage DECIMAL(5,2) CHECK (discount_percentage BETWEEN 0 AND 100),
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Insert Bulk Discount Tiers
+INSERT INTO bulk_subscription_discounts (min_niches, max_niches, discount_percentage, is_active) VALUES
+(2, 2, 5.00, TRUE),  -- 5% off for 2 niches
+(3, 4, 10.00, TRUE), -- 10% off for 3-4 niches
+(5, 6, 15.00, TRUE), -- 15% off for 5-6 niches
+(7, 7, 20.00, TRUE); -- 20% off for all 7 niches
+
+--------------------------------------------------------
+-- 🔹 Mystery Box Shipments (Tracks Subscription Deliveries)
+--------------------------------------------------------
+CREATE TABLE mystery_box_shipments (
+    shipment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    subscription_id UUID REFERENCES user_subscriptions(subscription_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    niche_id UUID REFERENCES subscription_niches(niche_id) ON DELETE CASCADE,
+    shipment_status shipment_status DEFAULT 'pending',
+    tracking_number VARCHAR(50) UNIQUE NULL, -- Optional tracking number
+    courier VARCHAR(100) NULL, -- Courier service name
+    shipped_at TIMESTAMP NULL,
+    delivered_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Mystery Box Items (Tracks Items Inside the Box)
+--------------------------------------------------------
+CREATE TABLE mystery_box_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    shipment_id UUID REFERENCES mystery_box_shipments(shipment_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE SET NULL,
+    is_custom_keychain BOOLEAN DEFAULT FALSE,
+    is_custom_quote BOOLEAN DEFAULT FALSE
+);
+
+--------------------------------------------------------
+-- 🔹 Predefined Quotes for Each Niche
+--------------------------------------------------------
+CREATE TABLE niche_quotes (
+    quote_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    niche_id UUID REFERENCES subscription_niches(niche_id) ON DELETE CASCADE,
+    quote TEXT NOT NULL
+);
+
+
+-- Enable necessary PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+--------------------------------------------------------
+-- 🔹 Brands (Nike, Anime Merch, Gym Gear, etc.)
+--------------------------------------------------------
+CREATE TABLE brands (
+    brand_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    brand_name VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT
+);
+
+--------------------------------------------------------
+-- 🔹 Categories (Clothing, Gym Accessories, Tech, etc.)
+--------------------------------------------------------
+CREATE TABLE categories (
+    category_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    parent_category_id UUID REFERENCES categories(category_id) NULL, -- Supports subcategories
+    path TEXT -- Hierarchical path (e.g., 'Clothing/Men/Hoodies')
+);
+
+--------------------------------------------------------
+-- 🔹 Product - Category Relationship (Many-to-Many)
+--------------------------------------------------------
+CREATE TABLE category_product (
+    category_id UUID REFERENCES categories(category_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    PRIMARY KEY (category_id, product_id)
+);
+
+--------------------------------------------------------
+-- 🔹 Products (Main Product Table)
+--------------------------------------------------------
+CREATE TABLE products (
+    product_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    brand_id UUID REFERENCES brands(brand_id) ON DELETE SET NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    base_price DECIMAL(10,2) NOT NULL CHECK (base_price > 0),
+    is_exclusive BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Product Variations (Tracks Size, Color, Edition, Stock)
+--------------------------------------------------------
+CREATE TABLE product_variations (
+    variation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    size VARCHAR(50) NULL, -- e.g., Small, Medium, Large
+    color VARCHAR(50) NULL, -- e.g., Red, Black, Blue
+    special_edition VARCHAR(100) NULL, -- e.g., "Limited Edition"
+    stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
+    additional_price DECIMAL(10,2) DEFAULT 0 CHECK (additional_price >= 0) -- Adds to base price
+);
+
+--------------------------------------------------------
+-- 🔹 Product Images (Multiple Images per Product)
+--------------------------------------------------------
+CREATE TABLE product_images (
+    image_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL
+);
+
+--------------------------------------------------------
+-- 🔹 Wishlist (Saved Products)
+--------------------------------------------------------
+CREATE TABLE wishlist (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    is_public BOOLEAN DEFAULT FALSE,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Shopping Cart (User's Cart Items)
+--------------------------------------------------------
+CREATE TABLE shopping_cart (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    product_variation_id UUID REFERENCES product_variations(variation_id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Store Credit (Balance for Users)
+--------------------------------------------------------
+CREATE TABLE store_credit (
+    user_id UUID REFERENCES users(user_id) PRIMARY KEY ON DELETE CASCADE,
+    balance DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (balance >= 0)
+);
+
+--------------------------------------------------------
+-- 🔹 Gift Orders (Completely Separate from Regular Orders)
+--------------------------------------------------------
+CREATE TABLE gift_orders (
+    gift_order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    recipient_email TEXT NOT NULL, -- User may not have an account
+    recipient_name VARCHAR(100) NOT NULL,
+    total_price DECIMAL(10,2) NOT NULL CHECK (total_price > 0),
+    payment_status payment_status DEFAULT 'pending',
+    message TEXT NULL, -- Optional gift message
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Gift Order Items (Tracks Items in a Gift Order)
+--------------------------------------------------------
+CREATE TABLE gift_order_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    gift_order_id UUID REFERENCES gift_orders(gift_order_id) ON DELETE CASCADE,
+    product_variation_id UUID REFERENCES product_variations(variation_id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    price DECIMAL(10,2) NOT NULL CHECK (price >= 0)
+);
+
+--------------------------------------------------------
+-- 🔹 Gift Messages (Personalized Message System)
+--------------------------------------------------------
+CREATE TABLE gift_messages (
+    message_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    gift_order_id UUID REFERENCES gift_orders(gift_order_id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Gift Cards (Users Can Buy & Redeem Store Credit)
+--------------------------------------------------------
+CREATE TABLE gift_cards (
+    gift_card_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    sender_id UUID REFERENCES users(user_id),
+    receiver_id UUID REFERENCES users(user_id) NULL, -- Nullable for unclaimed cards
+    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    is_redeemed BOOLEAN DEFAULT FALSE,
+    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    redeemed_at TIMESTAMP NULL
+);
+
+
+
+-- Enable necessary PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ENUM for order statuses
+CREATE TYPE order_status AS ENUM ('pending', 'processing', 'shipped', 'delivered', 'canceled', 'refunded');
+
+-- ENUM for payment statuses
+CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
+
+--------------------------------------------------------
+-- 🔹 Orders (Stores Snapshot of Purchase)
+--------------------------------------------------------
+CREATE TABLE orders (
+    order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    status order_status DEFAULT 'pending',
+    total_price DECIMAL(10,2) NOT NULL CHECK (total_price >= 0),
+    discount_applied DECIMAL(10,2) DEFAULT 0 CHECK (discount_applied >= 0), -- Discounts used
+    payment_status payment_status DEFAULT 'pending',
+    shipping_address_id UUID REFERENCES shipping_addresses(id) ON DELETE SET NULL,
+    billing_address_id UUID REFERENCES billing_addresses(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Order Items (Tracks Purchased Products with Snapshot Prices)
+--------------------------------------------------------
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID REFERENCES orders(order_id) ON DELETE CASCADE,
+    product_variation_id UUID REFERENCES product_variations(variation_id) ON DELETE SET NULL,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    unit_price DECIMAL(10,2) NOT NULL CHECK (unit_price >= 0), -- Snapshot price at time of order
+    discount_applied DECIMAL(10,2) DEFAULT 0 CHECK (discount_applied >= 0)
+);
+
+--------------------------------------------------------
+-- 🔹 Shipping Addresses (Multiple Addresses per User)
+--------------------------------------------------------
+CREATE TABLE shipping_addresses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    country VARCHAR(100) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    street VARCHAR(255) NOT NULL,
+    postal_code VARCHAR(20) NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE
+);
+
+--------------------------------------------------------
+-- 🔹 Billing Addresses (Multiple Billing Addresses per User)
+--------------------------------------------------------
+CREATE TABLE billing_addresses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    country VARCHAR(100) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    street VARCHAR(255) NOT NULL,
+    postal_code VARCHAR(20) NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE
+);
+
+--------------------------------------------------------
+-- 🔹 Payment Transactions (Tracks Payments & Refunds)
+--------------------------------------------------------
+CREATE TABLE payment_transactions (
+    transaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID REFERENCES orders(order_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    payment_status payment_status DEFAULT 'pending',
+    payment_method VARCHAR(50) NOT NULL, -- Example: "Credit Card", "PayPal"
+    refund_amount DECIMAL(10,2) DEFAULT 0 CHECK (refund_amount >= 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Order Status Updates (Tracks Order History)
+--------------------------------------------------------
+CREATE TABLE order_status_updates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID REFERENCES orders(order_id) ON DELETE CASCADE,
+    status order_status NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+
+
+-- Enable necessary PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ENUM for group roles
+CREATE TYPE group_role AS ENUM ('admin', 'moderator', 'member');
+
+--------------------------------------------------------
+-- 🔹 Friends & Friend Requests
+--------------------------------------------------------
+CREATE TABLE friends (
+    friendship_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    friend_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, friend_id) -- Prevent duplicate friendships
+);
+
+CREATE TABLE friend_requests (
+    request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    status VARCHAR(20) CHECK (status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Messaging System (1-on-1 & Group Chats)
+--------------------------------------------------------
+CREATE TABLE conversations (
+    conversation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    is_group BOOLEAN DEFAULT FALSE,
+    group_name VARCHAR(100) NULL,
+    created_by UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE conversation_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE messages (
+    message_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE -- Soft delete for "unsend"
+);
+
+--------------------------------------------------------
+-- 🔹 Message Reactions (User-Specific Custom Sets)
+--------------------------------------------------------
+CREATE TABLE reaction_sets (
+    set_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    set_name VARCHAR(50) NOT NULL,
+    reactions JSONB NOT NULL, -- Example: { "like": "👍", "love": "❤️", "wow": "😲" }
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE message_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID REFERENCES messages(message_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction VARCHAR(50) NOT NULL, -- e.g., "like", "love", "haha"
+    reacted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Blog & Public Discussions
+--------------------------------------------------------
+CREATE TABLE blog_posts (
+    post_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE post_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction VARCHAR(50) NOT NULL,
+    reacted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE post_comments (
+    comment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Notifications System
+--------------------------------------------------------
+CREATE TABLE notifications (
+    notification_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL, -- e.g., "friend_request", "message", "mention"
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+
+
+
+
+-- Enable necessary PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ENUM for group roles
+CREATE TYPE group_role AS ENUM ('admin', 'moderator', 'member');
+
+--------------------------------------------------------
+-- 🔹 Friends & Friend Requests
+--------------------------------------------------------
+CREATE TABLE friends (
+    friendship_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    friend_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, friend_id) -- Prevent duplicate friendships
+);
+
+CREATE TABLE friend_requests (
+    request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    status VARCHAR(20) CHECK (status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Messaging System (1-on-1 & Group Chats)
+--------------------------------------------------------
+CREATE TABLE conversations (
+    conversation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    is_group BOOLEAN DEFAULT FALSE,
+    group_name VARCHAR(100) NULL,
+    created_by UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE conversation_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE messages (
+    message_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE -- Soft delete for "unsend"
+);
+
+--------------------------------------------------------
+-- 🔹 Message Reactions (User-Specific Custom Sets)
+--------------------------------------------------------
+CREATE TABLE reaction_sets (
+    set_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    set_name VARCHAR(50) NOT NULL,
+    reactions JSONB NOT NULL, -- Example: { "like": "👍", "love": "❤️", "wow": "😲" }
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE message_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID REFERENCES messages(message_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction VARCHAR(50) NOT NULL, -- e.g., "like", "love", "haha"
+    reacted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Blog & Public Discussions
+--------------------------------------------------------
+CREATE TABLE blog_posts (
+    post_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE post_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction VARCHAR(50) NOT NULL,
+    reacted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE post_comments (
+    comment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Notifications System
+--------------------------------------------------------
+CREATE TABLE notifications (
+    notification_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL, -- e.g., "friend_request", "message", "mention"
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+
+
+
+
+-- Enable necessary PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ENUM for group roles
+CREATE TYPE group_role AS ENUM ('admin', 'moderator', 'member');
+
+-- ENUM for event types (Online vs IRL)
+CREATE TYPE event_type AS ENUM ('online', 'in-person');
+
+-- ENUM for giveaway types
+CREATE TYPE giveaway_type AS ENUM ('first_come_first_serve', 'random_draw');
+
+--------------------------------------------------------
+-- 🔹 Groups & Community Spaces
+--------------------------------------------------------
+CREATE TABLE groups (
+    group_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_by UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE group_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    group_id UUID REFERENCES groups(group_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    role group_role DEFAULT 'member',
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (group_id, user_id) -- Prevent duplicate memberships
+);
+
+CREATE TABLE group_posts (
+    post_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    group_id UUID REFERENCES groups(group_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Events System (Online & In-Person)
+--------------------------------------------------------
+CREATE TABLE events (
+    event_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    event_date TIMESTAMP NOT NULL,
+    event_type event_type NOT NULL DEFAULT 'online',
+    created_by UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE event_participants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    event_id UUID REFERENCES events(event_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Streaming & Live Content (Now Supports Multi-Platform)
+--------------------------------------------------------
+CREATE TABLE streamers (
+    streamer_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE streamer_platforms (
+    platform_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    streamer_id UUID REFERENCES streamers(streamer_id) ON DELETE CASCADE,
+    streaming_platform VARCHAR(50) NOT NULL, -- Example: "Twitch", "YouTube", "Kick"
+    channel_url TEXT NOT NULL
+);
+
+CREATE TABLE stream_schedules (
+    schedule_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    streamer_id UUID REFERENCES streamers(streamer_id) ON DELETE CASCADE,
+    platform_id UUID REFERENCES streamer_platforms(platform_id) ON DELETE CASCADE, -- Now linked per platform
+    stream_title VARCHAR(255) NOT NULL,
+    stream_date TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE stream_followers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    streamer_id UUID REFERENCES streamers(streamer_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    followed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Giveaways & Contests (Supports Both First Come & Random Draw)
+--------------------------------------------------------
+CREATE TABLE giveaways (
+    giveaway_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    giveaway_type giveaway_type NOT NULL DEFAULT 'random_draw',
+    max_winners INTEGER NOT NULL CHECK (max_winners > 0),
+    created_by UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE giveaway_entries (
+    entry_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    giveaway_id UUID REFERENCES giveaways(giveaway_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    entry_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE giveaway_winners (
+    winner_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    giveaway_id UUID REFERENCES giveaways(giveaway_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    won_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--------------------------------------------------------
+-- 🔹 Announcements & Official News
+--------------------------------------------------------
+CREATE TABLE announcements (
+    announcement_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE, -- Admins post announcements
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE announcement_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    announcement_id UUID REFERENCES announcements(announcement_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction VARCHAR(50) NOT NULL,
+    reacted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
