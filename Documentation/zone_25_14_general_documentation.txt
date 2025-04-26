@@ -13,7 +13,7 @@ Each niche represents a unique culture & lifestyle, allowing users to connect wi
 
 Niche Name	Description
 OtakuSquad	Anime-inspired clothing, accessories, and collectibles.
-StoikrClub	Gym & fitness apparel, gear, and lifestyle products.
+ᛋᛏᛟᛁᚲ (Stoic in Old Norse), StoikrClub(mainly for the domain) Gym & fitness apparel, gear, and lifestyle products.
 WD Crew	Car enthusiasts’ fashion, accessories, and custom mods.
 PerOs Pack	Motorcycle lifestyle gear, clothing, and accessories.
 CritHit Team	Gaming-themed clothing, accessories, and setups.
@@ -121,6 +121,7 @@ The subscription model is fully flexible:
 3 Months → $8.99 per month (10% off)
 6 Months → $7.99 per month (20% off)
 12 Months → $6.99 per month (30% off)
+
 📂 Project Structure (Codebase Organization)
 The entire project is split into three folders:
 ✔ zone_25-14_database → SQL scripts, database migrations, data models.

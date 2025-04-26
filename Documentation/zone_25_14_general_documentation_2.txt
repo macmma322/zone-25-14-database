@@ -1,0 +1,138 @@
+🔥 ZONE 25-14 – OFFICIAL BRAND & VISION DOCUMENTATION
+
+───────────────────────────────────────────────
+🔥 ORIGIN STORY – THE BIRTH OF ZONE 25-14
+───────────────────────────────────────────────
+This all began with a dream — one shared between two kids who felt like the world didn’t have a place for them.
+
+They grew up in Bulgaria, spending their days imagining a life where they could build something of their own. A place where people like them — quiet, creative, misunderstood, passionate — could belong. They talked about business, community, anime, fast cars, deep topics, and designing a future that looked nothing like what they were born into.
+
+No one else believed in them. No one else needed to.
+
+For years, they supported each other through everything. That bond became the foundation of a vision — Zone 25-14. The numbers came from their birthdays, but the meaning was deeper. It was about creation, identity, and brotherhood.
+
+Later, a lifelong friend — someone who had spent most of his life working hard and living far from them — was pulled back into the fold. The Holy Trio was finally complete. The plan wasn’t just a dream anymore. It was happening.
+
+Zone 25-14 is built from hardship. From isolation. From long talks under the stars about what could be. But more than that, it’s built from love — love for anime, machines, rebellion, code, and each other.
+
+> This isn’t a company. This is a **movement**.  
+> For the loners, the misfits, the night owls, the dreamers.  
+> For those who never gave up — even when no one else cared.  
+> Welcome to the Zone.
+
+───────────────────────────────────────────────
+## 🔢 NAME ORIGIN: ZONE 25-14 → ZONE 32-19 (Optional Evolution)
+───────────────────────────────────────────────
+- **** → 08.09 (September 8th)  
+- **** → 17.05 (May 17th)  
+- → 08 + 17 = 25, 09 + 05 = 14 → **Zone 25-14**
+
+🌀 If  (born 07.05) joins officially:
+- 08 + 17 + 07 = **32**
+- 09 + 05 + 05 = **19**
+→ Potential evolved name: **Zone 32-19**
+
+🧠 Future name ideas:
+- **Zone Trinity**  
+- **The Holy Trio**  
+- **ZTR (Zone: The Revolution)**  
+- **Zone V3** – The third evolution  
+- **CoreTrinity / TrioCore**
+
+───────────────────────────────────────────────
+## 🔥 ZONE 25-14 – NICHE NAME MEANINGS & SYMBOLISM
+───────────────────────────────────────────────
+
+🏎️ **WD Crew** – "Wheel Deal Crew"
+- Car culture brand. “WD” = Wheel Drive (2WD/4WD).  
+- Represents brotherhood, performance, drifting, and mods.
+
+🧍‍♂️ **ᛋᛏᛟᛁᚲ** (StoikrClub) – "The Club of the Stoic Warrior"
+- Written in Old Norse runes. Pronounced “Stoic”.
+- Gym & warrior niche. Discipline, myth, and strength.
+
+🎌 **OtakuSquad** – "Anime is Family"
+- Otaku = passionate anime/manga fan. Squad = family.
+- Expression, escapism, nostalgia, and creativity.
+
+🏍️ **PerOs Pack** – "Perfect Chaos Pack"
+- Meaning once tied to “Beautiful Disaster”.
+- A brotherhood of loyal riders and rebels. Tactical freedom.
+
+🎮 **CritHit Team** – "Critical Hit"
+- Based on RPG/FPS slang for high-damage strikes.
+- Adrenaline-fueled, gamer-energy niche.
+
+💻 **The Grid Opus** – "The Work of Coders"
+- Grid = structure, system. Opus = masterpiece.
+- Built for devs, tinkerers, and builders of the future.
+
+👑 **The Syndicate** – "The Silent Elite"
+- Inspired by old money, mafia energy, and luxury rebellion.
+- Quiet power. Prestige. Stylish domination.
+
+───────────────────────────────────────────────
+## 🎵 MUSIC & AUDIO IDENTITY
+───────────────────────────────────────────────
+
+🔥 General Music System:
+✔ Master playlist (all moods)  
+✔ Split into niche-specific YouTube playlists  
+✔ Future: Spotify, embedded web music players  
+✔ Used for events, giveaways, streams, and shop energy
+
+🎧 Sound Examples by Niche:
+- **OtakuSquad** – Anime intros, AMVs, orchestral lo-fi  
+- **ᛋᛏᛟᛁᚲ (Stoikr)** – Viking chants, war drums, epic pump music  
+- **WD Crew** – Driftwave, trap beats, midnight chrome  
+- **PerOs Pack** – Gritty biker rock, rebel metal, slow burn  
+- **CritHit Team** – Dubstep, glitchstep, hype game OSTs  
+- **The Grid Opus** – Synthwave, cyberpunk, hacker ambiance  
+- **The Syndicate** – Classical jazz trap, noir vibes, elite swagger
+
+📽 Future Expansions:
+- “ZoneRadio” background mode  
+- Unboxing SFX, trailer cues, live stream music  
+- Mini-games and custom sound rewards
+
+───────────────────────────────────────────────
+## 💎 CORE PLATFORM STRUCTURE
+───────────────────────────────────────────────
+
+🎯 Platform Type:
+A hybrid of store + community + social network.
+
+🧱 Built On:
+- PostgreSQL (DB design done)
+- Node.js + Express (REST API)
+- React or Next.js + Tailwind (Frontend)
+- WebSocket (for messaging + events)
+- Optional: Redis, Stripe, OAuth, CI/CD
+
+📦 Key Features:
+- Users, roles, and friend system  
+- Wishlist, carts, gift orders  
+- Monthly niche-based subscriptions + mystery boxes  
+- Messaging, chat requests, reactions, unsend  
+- Groups, blog, events (IRL + online)  
+- Streaming support + giveaways  
+- Admin panel for product management, bans, and news
+
+───────────────────────────────────────────────
+## 🧠 BRAND PHILOSOPHY
+───────────────────────────────────────────────
+
+This platform is not just a business — it's a rebellion.
+
+It’s for:
+- The outcasts who love anime
+- The lone warriors in the gym
+- The drivers chasing speed at night
+- The bikers loyal to the code
+- The coders building invisible worlds
+- The gamers who grind with purpose
+- The dreamers with no voice — until now
+
+> You don’t need to fit in.  
+> You just need a place that gets you.  
+> **Welcome to Zone 25-14.**

@@ -1,0 +1,463 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Outfit:wght@300;400;500;600;700&family=Dancing+Script&family=Pacifico&display=swap');
+:root {
+
+/*----------------------------------------------------*/
+/*------------------TYPOGRAPHY SYSTEM-----------------*/
+/*----------------------------------------------------*/
+
+  /*------------------FONT FAMILIES------------------*/
+
+  --font-sans: 'Outfit', sans-serif;           /* Main UI font */
+  --font-heading: 'Outfit', sans-serif;
+  --font-display: 'Anton', sans-serif;         /* Hero / promo */
+  --font-script-soft: 'Dancing Script', cursive;  /* Personal, soft */
+  --font-script-bold: 'Pacifico', cursive;        /* Eye-catching signature */
+
+  /* Optional: Line Heights & Letter Spacing */
+
+  --line-height-sm: 1.2;
+  --line-height-base: 1.5;
+  --line-height-loose: 1.75;
+
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.05em;
+
+  /* Font Sizes (using rem for scalability) */
+
+  --fs-display: 2.25rem;         /* 36px - Hero / Display Headings */
+  --fs-heading-xl: 1.875rem;     /* 30px - H1 Headings */
+  --fs-heading-lg: 1.5rem;       /* 24px - H2 */
+  --fs-heading-md: 1.25rem;      /* 20px - H3 / Section titles */
+  --fs-heading-sm: 1.125rem;     /* 18px - H4 / Compact headings */
+  --fs-body: 1rem;               /* 16px - Default body text */
+  --fs-body-sm: 0.938rem;        /* 15px - Slightly smaller body */
+  --fs-label: 0.875rem;          /* 14px - Form labels, footnotes */
+  --fs-caption: 0.813rem;        /* 13px - Small captions */
+  --fs-caption-sm: 0.75rem;      /* 12px - Micro text */
+  --fs-tiny: 0.688rem;           /* 11px - Disclaimers */
+  --fs-minuscule: 0.625rem;      /* 10px - Legal fine print */
+
+  /* Font Weights */
+
+  --weight-light: 300;           /* Light weight (body or accent) */
+  --weight-regular: 400;         /* Default regular weight */
+  --weight-medium: 500;          /* Slight emphasis */
+  --weight-semibold: 600;        /* For subheadings or bold UI */
+  --weight-bold: 700;            /* Main headings */
+
+/*------------------------------------------*/
+/*------------------COLORS------------------*/
+/*------------------------------------------*/
+
+  /*---------------------WHITE COLORS---------------------*/
+
+  --White: hsl(0, 0%, 100%); /* #FFFFFF White */
+  --Cultured-White: hsl(0, 0%, 93%); /* #EEEEEE Cultured White */
+  --Azureish-White: hsl(209, 56%, 92%); /* #D9E6F2 Azureish White */
+  --Chinese-White: hsl(143, 39%, 87%); /* #E5F0F6 Chinese White */
+  --Warm-Off-White: hsl(40, 10%, 95%);     /* #F0F0E6 Warm Off-White */
+  --Ivory: hsl(60, 30%, 95%);              /* #FFFFF0 Ivory */
+  --Foggy-White: hsl(0, 0%, 97%); /* #F7F7F7 Foggy White */
+  --Alabaster: hsl(30, 16%, 93%); /* #E6E6D6 Alabaster */
+
+  /*---------------------CREAM/BEIGE COLORS COLORS---------------------*/
+  
+  --Cream: hsl(42, 53%, 91%); /* #FFFDD0 Cream */
+  --Parchment: hsl(39, 41%, 86%); /* #F1E9D2 Parchment */
+  --Beige: hsl(36, 34%, 75%); /* #D7BFAE Beige */
+  --Vanilla-Cream: hsl(43, 78%, 90%); /* #F8F0D9 Vanilla Cream */
+  --Milk-White: hsl(42, 70%, 95%); /* #FDF6E3 Milk White */
+  --Champagne: hsl(38, 75%, 85%);  /* #F7E7CE Champagne */
+  --Almond-Silk: hsl(30, 45%, 82%); /* #EBD8C3 Almond Silk */
+  --Blanched-Oat: hsl(40, 70%, 88%); /* #F5ECD9 Blanched Oat */
+  --Velvet-Beige: hsl(33, 30%, 80%); /* #D9C8B0 Velvet Beige */
+  --Eggnog: hsl(37, 65%, 92%); /* #FAF0DC Eggnog */
+  --Fawn-Tone: hsl(32, 50%, 72%); /* #D2B48C Fawn Tone */
+  --Soft-Sand: hsl(36, 40%, 78%); /* #DCCDB4 Soft Sand */
+  --Camel-Skin: hsl(30, 38%, 68%); /* #C8AD7F Camel Skin */
+
+
+  /*---------------------GRAY COLORS---------------------*/
+
+  --Davys-gray: hsl(0, 0%, 33%); /* #555555 Davys Gray */
+  --Onyx: hsl(0, 0%, 27%); /* #444444 Onyx */
+  --Onyx-Darker: hsl(0, 0%, 25%); /* #404040 Onyx Darker */
+  --Dirty-Onyx: hsla(0, 0%, 27%, 0.6); /* #444444 Dirty Onyx */
+  --Charcoal-Gray: hsl(0, 0%, 20%); /* #333333 Charcoal Gray */
+  --Dark-Charcoal: hsl(0, 0%, 20%); /* #333333 Dark Charcoal */
+  --Gunmetal-Gray: hsl(198, 13%, 20%); /* #2C3539 Gunmetal Gray */
+  --Black-Pearl: hsl(0, 0%, 23%); /* #3B3B3B Black Pearl */
+  --Ash-Veil: hsl(0, 0%, 22%); /* #383838 Ash Veil */
+  --Raven-Feathers: hsl(0, 0%, 12%); /* #1F1F1F Raven Feathers */
+  --Graphite: hsl(0, 0%, 50%); /* #808080 Graphite */
+  --Light-Slate-Gray: hsl(203, 13%, 53%); /* #848484 Light Slate Gray */
+  --Cinereous-Brounish: hsl(22, 13%, 54%); /* #8C8C8C Cinereous Brounish */
+  --Spanish-Gray: hsl(0, 0%, 60%); /* #999999 Spanish Gray */
+  --Sonic-Silver: hsl(0, 0%, 47%); /* #787878 Sonic Silver */
+  --Imperial-Silver: hsl(0, 0%, 85%); /* #D9D9D9 Imperial Silver */
+  --American-Silver: hsl(103, 8%, 82%); /* #D9D9D9 American Silver */
+  --Light-Steel-Blue: hsl(202, 37%, 76%); /* #D0D0D0 Light Steel Blue */
+  --Light-Blue-Gray: hsl(210, 15%, 90%); /* #E6E6E6 Light Blue Gray */
+  --Navy-Charcoal: hsl(211, 29%, 25%); /* #3D424D Navy Charcoal */
+  --Independence-Blue: hsl(212, 23%, 35%); /* #4B535F Independence Blue */
+  --Dirty-White: hsla(196, 6%, 53%, 0.6); /* #D9D9D9 Dirty White */
+
+  /*---------------------RED COLORS---------------------*/
+
+  --Scarlet-Red: hsl(8, 100%, 50%); /* #FF2D00 Scarlet Red */
+  --Bittersweet: hsl(0, 100%, 70%); /* #FF4500 Bittersweet */
+  --Crimson-Red: hsl(354, 65%, 55%); /* #E63946 Crimson Red */
+  --Dark-Crimson: hsl(350, 48%, 36%); /* #8C4B49 Dark Crimson */
+  --Ember-Red: hsl(342, 64%, 33%); /* #8B1E3F Ember Red */
+  --Catawba: hsl(355, 34%, 33%); /* #584C45 Catawba */
+  --Dark-Chocolate-Cherries: hsl(358, 31%, 39%); /* #5D4A4A Dark Chocolate Cherries */
+  --Wounded-Crimson: hsl(353, 79%, 21%); /* #5E0B15 Wounded Crimson */
+  --Salmon-Pink: hsl(353, 100%, 78%); /* #FFD7D7 Salmon Pink */
+  --Brown-Chocolate: hsl(338, 54%, 24%); /* #4A3630 Brown Chocolate */
+  --Chocolate-Cosmos: hsl(341, 78%, 21%); /* #462821 Chocolate Cosmos */
+
+  /*---------------------YELLOW COLORS---------------------*/
+
+  --Goldenrod: hsl(43, 74%, 49%); /* #DAA520 Goldenrod */
+  --Cyber-Yellow: hsl(52, 100%, 50%); /* #FFD300 Cyber Yellow */
+  --Luxe-Gold: hsl(48, 96%, 72%);  /* #F9E79F Luxe Gold */
+  --Sunbeam: hsl(50, 100%, 70%); /* #FFF380 Sunbeam */
+  --Mustard: hsl(48, 89%, 55%); /* #FFDB58 Mustard */
+  --Yellow-Accent: hsl(47, 95%, 60%); /* #FFE03C Yellow Accent */
+  --Lemon-Zest: hsl(54, 100%, 50%); /* #FFF700 Lemon Zest */
+  --Mellow-Yellow: hsl(48, 100%, 65%); /* #F8DE7E Mellow Yellow */
+  --Dandelion: hsl(45, 95%, 60%); /* #FED85D Dandelion */
+  --Buttered-Corn: hsl(50, 85%, 55%); /* #F6C915 Buttered Corn */
+  --Flax-Gold: hsl(42, 85%, 50%); /* #EEDC82 Flax Gold */
+  --Golden-Sand: hsl(41, 77%, 68%); /* #F4E27D Golden Sand */
+  --Corn-Silk: hsl(48, 83%, 90%); /* #FFF8DC Corn Silk */
+  --Sunflower: hsl(45, 100%, 55%); /* #FFC512 Sunflower */
+  --Harvest-Gold: hsl(41, 77%, 50%); /* #DA9100 Harvest Gold */
+  --Goldfire: hsl(40, 90%, 48%); /* #FAB000 Goldfire */
+
+  /*---------------------BROWN COLORS---------------------*/
+
+  --Burnt-Clay: hsl(28, 22%, 46%); /* #8E735B Burnt Clay */
+  --Sandy-Brown: hsl(29, 90%, 65%); /* #F0DCA4 Sandy Brown */
+  --Pale-Taupe: hsl(32, 32%, 61%); /* #DCD0B9 Pale Taupe */
+  --Dark-Vanilla: hsl(31, 28%, 77%); /* #F0E6DC Dark Vanilla */
+  --Pale-Silver: hsl(31, 21%, 77%); /* #F0E6DC Pale Silver */
+  --Stone-Dust: hsl(43, 19%, 70%); /* #C1B9A4 Stone Dust */
+  --Desert-Sand: hsl(17, 46%, 80%); /* #F0E6D6 Desert Sand */
+  --Wasteland-Sand: hsl(45, 32%, 70%); /* #CBBF9A Wasteland Sand */
+  --Zinnwaldite-Brown: hsl(27, 46%, 12%); /* #46382F Zinnwaldite Brown */
+  --Bison-Hide-Khaki: hsl(39, 22%, 69%); /* #DAD7C4 Bison Hide Khaki */
+  --Coffee-Brown: hsl(23, 38%, 35%); /* #8C7A66 Coffee Brown */
+  --Crayola-Brown: hsl(30, 53%, 64%); /* #99867D Crayola Brown */
+  --Brown-Sugar: hsl(16, 39%, 48%); /* #968C7E Brown Sugar */
+  --Metalic-Bronze: hsl(35, 42%, 46%); /* #938C7E Metalic Bronze */
+
+  /*---------------------ORANGE COLORS---------------------*/
+
+  --Runestone-Rust: hsl(18, 86%, 41%);      /* #C1440E Runestone Rust */
+  --Spicy-Orange: hsl(26, 100%, 60%);       /* #FF7518 Spicy Orange */
+  --Deep-Autumn-Orange: hsl(27, 99%, 47%);  /* #FF7F50 Deep Autumn Orange */
+  --Molten-Core: hsl(16, 100%, 46%);        /* #FF5E3A Molten Core */
+  --Pumpkin: hsl(28, 85%, 50%);             /* #FF7518 Pumpkin */
+  --Amber: hsl(38, 100%, 50%);              /* #FFBF00 Amber */
+  --Blood-Orange: hsl(14, 100%, 50%);       /* #FF4500 Blood Orange */
+  --Fireburst: hsl(20, 100%, 55%);          /* #FF6A00 Fireburst */
+  --Clementine: hsl(28, 90%, 55%);          /* #FFA600 Clementine */
+  --Tiger-Orange: hsl(30, 100%, 45%);       /* #FF8C00 Tiger Orange */
+  --Bronzed-Orange: hsl(30, 76%, 42%);      /* #C46B29 Bronzed Orange */
+  --Orange-Sunset: hsl(25, 95%, 65%);       /* #FFA552 Orange Sunset */
+  --Torch-Orange: hsl(24, 100%, 62%);       /* #FD6C3C Torch Orange */
+  --Persimmon: hsl(18, 95%, 60%);           /* #EC5800 Persimmon */
+  --Inferno: hsl(10, 90%, 46%);             /* #E25822 Inferno */
+
+
+  /*---------------------GREEN COLORS---------------------*/
+
+  --Light-Emerald-Green: hsl(125, 32%, 77%); /* #D0E1D9 Light Emerald Green */
+  --Soft-Emerald-Green: hsl(120, 25%, 90%); /* #E6E9D4 Soft Emerald Green */
+  --Deep-Olive-Green: hsl(120, 35%, 5%); /* #4D5329 Deep Olive Green */
+  --Dead-Moss: hsl(82, 39%, 30%); /* #556B2F Dead Moss */
+  --Ocean-Green: hsl(152, 51%, 52%); /* #8CA28A Ocean Green */
+  --Slate-Green: hsl(160, 24%, 40%); /* #99A38D Slate Green */
+  --Alpine-Green: hsl(167, 51%, 22%); /* #465941 Alpine Green */
+  --Charleston-Green: hsl(180, 17%, 16%); /* #282828 Charleston Green */
+  --Dark-Green: hsl(179, 56%, 15%); /* #2D3423 Dark Green */
+
+  /*---------------------BLUE COLORS---------------------*/
+
+  --Steel-Blue: hsl(207, 44%, 49%); /* #4682B4 Steel Blue */
+  --Abyssal-Blue: hsl(213, 74%, 15%); /* #0A2342 Abyssal Blue */
+  --Cerulean-Blue: hsl(200, 70%, 50%); /* #3399FF Cerulean Blue */
+  --Sky-Blue: hsl(197, 71%, 73%); /* #87CEEB Sky Blue */
+  --Powder-Blue: hsl(210, 60%, 80%); /* #B0E0E6 Powder Blue */
+  --Cornflower-Blue: hsl(219, 79%, 66%); /* #6495ED Cornflower Blue */
+  --Indigo-Blue: hsl(226, 58%, 40%); /* #3F51B5 Indigo Blue */
+  --Blue-Royal: hsl(225, 73%, 57%); /* #4169E1 Royal Blue */
+  --Cobalt-Blue: hsl(221, 61%, 49%); /* #0047AB Cobalt Blue */
+  --Prussian-Blue: hsl(210, 50%, 20%); /* #003153 Prussian Blue */
+  --Midnight-Blue: hsl(210, 30%, 15%); /* #191970 Midnight Blue */
+  --Oceanic-Blue: hsl(204, 80%, 40%); /* #0077BE Oceanic Blue */
+  --Icy-Blue: hsl(205, 70%, 90%); /* #D6EFFA Icy Blue */
+  --Deep-Blue: hsl(213, 80%, 20%); /* #0B2545 Deep Blue */
+
+  /*---------------------AQUA & TEAL COLORS---------------------*/
+
+  --Phantom-Teal: hsl(176, 61%, 19%); /* #134E4A Phantom Teal */
+  --Teal: hsl(180, 100%, 25%); /* #008080 Teal */
+  --Deep-Teal: hsl(180, 100%, 20%); /* #006666 Deep Teal */
+  --Medium-Turquoise: hsl(178, 60%, 55%); /* #48D1CC Medium Turquoise */
+  --Light-Sea-Green: hsl(177, 70%, 41%); /* #20B2AA Light Sea Green */
+  --Aqua: hsl(180, 100%, 50%); /* #00FFFF Aqua */
+  --Aquamarine: hsl(160, 100%, 75%); /* #7FFFD4 Aquamarine */
+  --Mint: hsl(150, 50%, 85%); /* #AAF0D1 Mint */
+
+
+  /*---------------------VIOLET COLORS---------------------*/
+
+  --Electric-Rune: hsl(239, 53%, 59%); /* #5E60CE Electric Rune */
+  --Dusty-Lavender: hsl(240, 15%, 70%); /* #A7A7Be Dusty Lavander */
+  --Royal-Violet: hsl(266, 48%, 45%); /* #86608E Royal Violet */
+  --Void-Purple: hsl(285, 100%, 12%); /* #2E003E Void Purple */
+  --Deep-Sangria: hsl(318, 57%, 22%); /* #581845 Deep Sangria */
+  --Bazaar-Violet: hsl(332, 16%, 52%); /* #8C7A8C Bazaar Violet */
+  --Midnight-Indigo: hsl(231, 48%, 48%); /* #3F51B5 Midnight Indigo */
+
+  /*---------------------PINK COLORS---------------------*/
+
+  --Pastel-Pink: hsl(340, 100%, 88%); /* #FFD1DC Pastel Pink */
+  --Bubblegum-Pink: hsl(340, 100%, 80%); /* #FFA6C9 Bubblegum Pink */
+  --Hot-Pink: hsl(330, 100%, 60%); /* #FF69B4 Hot Pink */
+  --Dusty-Rose: hsl(345, 30%, 70%); /* #D6A5A5 Dusty Rose */
+
+  /*---------------------NEON COLORS---------------------*/
+
+  --Neon-Orange: hsl(22, 100%, 50%); /* #FF5F1F Neon Orange */
+  --Neon-Red: hsl(0, 100%, 50%); /* #FF073A Neon Red */
+  --Neon-Purple: hsl(285, 100%, 60%); /* #D300FF Neon Purple */
+  --Neon-Blue: hsl(205, 100%, 55%); /* #00BFFF Neon Blue */
+  --Neon-Cyan: hsl(185, 100%, 50%); /* #00FFFF Neon Cyan */
+  --Neon-Lime: hsl(90, 100%, 50%); /* #CCFF00 Neon Lime */
+  --Neon-Yellow: hsl(55, 100%, 60%); /* #FFFF33 Neon Yellow */
+  --Electric-Aqua: hsl(174, 100%, 60%); /* #00FFCC Electric Aqua */
+  --Cyber-Grape: hsl(284, 90%, 45%); /* #58427C Cyber Grape */
+  --Magenta-Shock: hsl(310, 100%, 55%); /* #FF00FF Magenta Shock */
+  --Neon-Green: hsl(120, 100%, 50%); /* #39FF14 Neon Green */
+  --Cyber-Yellow: hsl(52, 100%, 50%); /* #FFD300 Cyber Yellow */
+  --Electric-Violet: hsl(270, 100%, 65%); /* #8F00FF Electric Violet */
+  --Neon-Pink: hsl(328, 100%, 70%); /* #FF6EC7 Neon Pink */
+  --Laser-Blue: hsl(200, 100%, 60%); /* #7DF9FF Laser Blue */
+
+  /*---------------------BLACK COLORS---------------------*/
+
+  --Onyx-Black: hsl(0, 0%, 13%); /* #222222 Rich black for high contrast and depth */
+  --Pitch-Black: hsl(0, 0%, 4%); /* #0A0A0A Pitch Black */
+  --Void-Black: hsl(0, 0%, 6%); /* #0F0F0F Void Black */
+  --Silent-Night-Black: hsl(0, 0%, 11%); /* #1B1B1B Silent Night Black */
+  --Charred-Black: hsl(0, 0%, 8%); /* #141414 Charred Black */
+  --Battlefield-Black: hsl(0, 0%, 7%); /* #121212 Battlefield Black */
+  --Obsidian-Black: hsl(228, 19%, 5%); /* #0B0C10 Obsidian Black */
+
+  /*---------------------METALLIC---------------------*/
+  
+  --Golden-Yellow-Gradient: radial-gradient(circle,
+    rgba(255, 191, 0, 1) 0%,
+    rgba(255, 207, 64, 1) 36%,
+    rgba(255, 220, 115, 1) 100%); /* Golden Yellow Gradient */
+  --Metallic-Gold: hsl(45, 100%, 50%); /* #FFD700 Metallic Gold */
+  --Light-Gold: hsl(48, 96%, 72%); /* #F9E79F Light Gold */
+  --Platinum: hsl(0, 0%, 90%); /* #E5E4E2 Platinum */
+  --Pewter: hsl(0, 0%, 73%); /* #96A8A1 Pewter */
+  --Copper: hsl(24, 76%, 47%); /* #B87333 Copper */
+  --Bronze: hsl(30, 59%, 40%); /* #CD7F32 Bronze */
+  --Chrome: hsl(0, 0%, 80%); /* #C0C0C0 Chrome */
+
+/*-----------------------------------------------*/
+/*------------------UI STRUCTURE-----------------*/
+/*-----------------------------------------------*/
+
+  /*------------------BORDER RADIUS------------------*/
+
+  --radius-xs: 2px;         /* Tiny elements (badges, tags) */
+  --radius-sm: 4px;         /* Small buttons, inputs */
+  --radius-md: 8px;         /* Default for most UI components */
+  --radius-lg: 12px;        /* Cards, modals */
+  --radius-xl: 20px;        /* Hero banners, containers */
+  --radius-pill: 9999px;    /* Fully rounded (chips, pills, toggles) */
+  --radius-circle: 50%;     /* Perfect circle */
+
+  /*------------------TRANSITIONS------------------*/
+
+  --transition-fast: 0.15s ease-in-out;
+  --transition-md: 0.3s ease;
+  --transition-slow: 0.5s ease;
+  --transition-cubic: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /*------------------SPACING TOKENS------------------*/
+
+  --space-xxs: 0.125rem;   /* 2px → Pixel-perfect nudges */
+  --space-xs:  0.25rem;    /* 4px */
+  --space-sm:  0.5rem;     /* 8px */
+  --space-md:  1rem;       /* 16px */
+  --space-lg:  1.5rem;     /* 24px */
+  --space-xl:  2rem;       /* 32px */
+  --space-2xl: 3rem;       /* 48px */
+  --space-3xl: 4rem;       /* 64px */
+  --space-section: 6rem;   /* 96px → Major layout gaps */
+
+  /*------------------ELEVATION / SHADOWS------------------*/
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);         /* Very subtle */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);         /* Cards, inputs */
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12);         /* Modals, buttons */
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.16);        /* Tooltips, popovers */
+  --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.2);        /* Full-screen overlays */
+  --shadow-glow: 0 0 12px rgba(0, 255, 204, 0.3);     /* Optional: neon effect */
+
+  /*------------------Z-INDEX SCALE------------------*/
+
+  --z-base: 0;               /* Default content layer */
+  --z-content: 10;           /* Elevated content blocks */
+  --z-dropdown: 100;         /* Menus, dropdowns */
+  --z-sticky: 200;           /* Sticky headers, navbars */
+  --z-fixed: 300;            /* Fixed positioned UI */
+  --z-overlay: 400;          /* Backdrops, overlays */
+  --z-modal: 500;            /* Modals, dialogs */
+  --z-popover: 600;          /* Tooltips, popovers */
+  --z-toast: 700;            /* Toasts, alerts */
+  --z-tooltip: 800;          /* Always on top tips */
+  --z-devtools: 999;         /* Dev tools / debug overlays */
+  --z-absolute-top: 9999;    /* Emergency override (rare) */
+
+/*------------------------------------------------*/
+/*------------------RESPONSIVE SYSTEM-------------*/
+/*------------------------------------------------*/
+
+  /* Breakpoints */
+  --bp-xs: 480px;     /* Mobile (portrait) */
+  --bp-sm: 640px;     /* Mobile (landscape / larger phones) */
+  --bp-md: 768px;     /* Tablets (portrait) */
+  --bp-lg: 1024px;    /* Tablets (landscape) / Small desktops */
+  --bp-xl: 1280px;    /* Desktops */
+  --bp-2xl: 1536px;   /* Large screens / wide monitors */
+
+  /* Container Widths */
+  --max-width-content: 1280px;    /* Core layout content */
+  --max-width-wrapper: 1440px;    /* Full wrapper for sections */
+  --max-width-full: 100%;         /* Fluid full width fallback */
+
+  /* Fluid Font Sizes (clamp-based) */
+  --fs-fluid-sm: clamp(0.875rem, 0.6vw, 1rem);     /* Small body */
+  --fs-fluid-base: clamp(1rem, 1vw, 1.25rem);      /* Normal body */
+  --fs-fluid-md: clamp(1.25rem, 1.4vw, 1.5rem);    /* H3 / Subheading */
+  --fs-fluid-lg: clamp(1.5rem, 1.8vw, 2.25rem);    /* H2 / Section */
+  --fs-fluid-xl: clamp(2rem, 3vw, 3.5rem);         /* H1 / Hero */
+  --fs-fluid-display: clamp(2.5rem, 5vw, 5rem);    /* Massive banners */
+
+  /* Fluid Spacing (optional) */
+  --space-fluid-xs: clamp(0.25rem, 1vw, 0.5rem);   /* 4–8px */
+  --space-fluid-sm: clamp(0.5rem, 2vw, 1rem);      /* 8–16px */
+  --space-fluid-md: clamp(1rem, 3vw, 2rem);        /* 16–32px */
+  --space-fluid-lg: clamp(1.5rem, 4vw, 3rem);      /* 24–48px */
+  --space-fluid-xl: clamp(2rem, 5vw, 4rem);        /* 32–64px */
+
+}
+
+/*----------------------------------------------*/
+/*------------------BASE RESET------------------*/
+/*----------------------------------------------*/
+
+  *,
+  *::before,
+  *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  html {
+    font-size: 16px; /* 1rem = 16px, scaleable */
+    height: 100%;
+    width: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-body, var(--font-sans));
+    font-size: var(--fs-body);
+    font-weight: var(--weight-regular);
+    line-height: var(--line-height-base);
+    color: var(--Onyx-Black);
+    background-color: var(--White);
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+
+  img,
+  picture,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    background: none;
+    border: none;
+    outline: none;
+    color: inherit;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  ul,
+  ol {
+    list-style: none;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  .main-container {
+    max-width: var(--max-width-content);
+    padding: var(--space-fluid-md);
+    font-size: var(--fs-fluid-base);
+  }
+
+  .hero h1 {
+    font-size: var(--fs-fluid-display);
+    padding-bottom: var(--space-fluid-lg);
+  }
+
+  @media (min-width: var(--bp-md)) {
+    .nav {
+      padding: var(--space-lg);
+    }
+  }
+
+  :focus-visible {
+  outline: 2px dashed var(--Neon-Blue);
+  outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--Neon-Blue);
+    color: var(--White);
+  }
+

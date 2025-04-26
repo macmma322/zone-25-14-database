@@ -1,0 +1,976 @@
+-- ##########################################################
+-- #                  GROUP 1: USER MANAGEMENT             #
+-- #  Manages user authentication, profiles, roles,       #
+-- #  security settings, and linked accounts.             #
+-- ##########################################################
+
+-- Enable necessary PostgreSQL extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ENUM for User Roles
+CREATE TYPE user_role AS ENUM ('Explorer', 'Supporter', 'Elite Member', 'Legend', 'Ultimate', 
+                               'Moderator', 'Store Chief', 'Hype Lead', 'Founder');
+
+-- User Roles Table
+CREATE TABLE user_roles_levels (
+    role_level_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    role_name user_role UNIQUE NOT NULL,
+    required_points INTEGER DEFAULT 0 CHECK (required_points >= 0),
+    discount_percentage DECIMAL(5,2) DEFAULT 0.00 CHECK (discount_percentage BETWEEN 0 AND 100),
+    is_staff BOOLEAN DEFAULT FALSE,
+    permissions JSONB DEFAULT '{}' -- Stores detailed role permissions
+);
+
+-- Users Table
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password TEXT NOT NULL, -- Assume bcrypt-hashed
+    email TEXT UNIQUE NOT NULL, -- Will be stored encrypted
+    phone TEXT NULL, -- Will be stored encrypted
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    biography TEXT,
+    profile_picture TEXT,
+    role_level_id UUID REFERENCES user_roles_levels(role_level_id) DEFAULT 
+        (SELECT role_level_id FROM user_roles_levels WHERE role_name = 'Explorer'),
+    store_credit DECIMAL(10,2) DEFAULT 0 CHECK (store_credit >= 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Linked Accounts (OAuth Logins)
+CREATE TABLE linked_accounts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    platform VARCHAR(50) NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    profile_url TEXT NOT NULL,
+    access_token TEXT NULL,
+    refresh_token TEXT NULL,
+    linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Saved Cards (Encrypted Storage for Payment Info)
+CREATE TABLE saved_cards (
+    card_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    encrypted_card_number TEXT NOT NULL,
+    encrypted_expiry_date TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Privacy Settings (User Control over Visibility & Interaction)
+CREATE TABLE privacy_settings (
+    user_id UUID PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    allow_friend_requests BOOLEAN DEFAULT TRUE,
+    allow_messages BOOLEAN DEFAULT TRUE,
+    profile_visibility VARCHAR(20) CHECK (profile_visibility IN ('public', 'private', 'friends-only')),
+    show_wishlist BOOLEAN DEFAULT TRUE,
+    show_recent_purchases BOOLEAN DEFAULT TRUE,
+    appear_offline BOOLEAN DEFAULT FALSE
+);
+
+-- User Preferences (Custom Settings for User Experience)
+CREATE TABLE user_preferences (
+    user_id UUID PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    theme_mode VARCHAR(20) CHECK (theme_mode IN ('light', 'dark', 'system')) DEFAULT 'system',
+    language VARCHAR(10) DEFAULT 'en',
+    preferred_currency VARCHAR(3) REFERENCES currencies(currency_code) DEFAULT 'USD',
+    email_notifications BOOLEAN DEFAULT TRUE
+);
+
+
+-- Notification Settings
+CREATE TABLE notification_settings (
+    user_id UUID PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    notify_on_new_message BOOLEAN DEFAULT TRUE,
+    notify_on_friend_request BOOLEAN DEFAULT TRUE,
+    notify_on_announcement BOOLEAN DEFAULT TRUE
+);
+
+-- IP Usage Tracking (Prevents Multi-Account Abuse)
+CREATE TABLE ip_usage (
+    ip_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    ip_address VARCHAR(45) NOT NULL, -- Only logs the raw IP
+    detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Failed Login Tracking (Prevents Brute Force Attacks)
+CREATE TABLE failed_logins (
+    fail_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE, -- The targeted user
+    ip_address VARCHAR(45) NOT NULL, -- IP of the failed attempt
+    attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- When the failed attempt happened
+    reason TEXT NOT NULL CHECK (reason IN ('wrong_password', 'account_locked', 'suspicious_activity'))
+);
+
+-- Device Tracking (Prevents Account Sharing & Unauthorized Access)
+CREATE TABLE user_devices (
+    device_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    device_fingerprint TEXT NOT NULL, -- Unique device identifier
+    country VARCHAR(100) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ##########################################################
+-- #               GROUP 2: SUBSCRIPTIONS & PAYMENTS       #
+-- #  Manages user subscriptions, billing, mystery boxes  #
+-- #  & tracks recurring payments.                        #
+-- ##########################################################
+
+-- ENUM for Billing Cycle
+CREATE TYPE billing_cycle AS ENUM ('monthly', 'quarterly', 'half_yearly', 'yearly');
+
+-- ENUM for Payment Status
+CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
+
+-- ENUM for Mystery Box Shipment Status
+CREATE TYPE shipment_status AS ENUM ('pending', 'shipped', 'delivered', 'failed');
+
+-- Subscription Niches Table (Anime, Gaming, Tech, etc.)
+CREATE TABLE subscription_niches (
+    niche_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) UNIQUE NOT NULL
+);
+
+-- Subscription Plans Table (Stores different tiers per niche)
+CREATE TABLE subscription_plans (
+    plan_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    niche_id UUID REFERENCES subscription_niches(niche_id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    base_price DECIMAL(10,2) NOT NULL CHECK (base_price > 0),
+    currency_code VARCHAR(3) REFERENCES currencies(currency_code),
+    billing_cycle billing_cycle NOT NULL DEFAULT 'monthly',
+    perks JSONB DEFAULT '{}' -- Example: { "double_xp": true, "free_shipping": true }
+);
+
+-- Modify User Subscriptions Table to allow 6 months
+CREATE TABLE user_subscriptions (
+    subscription_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    plan_id UUID REFERENCES subscription_plans(plan_id) ON DELETE CASCADE,
+    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    duration_months INTEGER CHECK (duration_months IN (1, 3, 6, 12)),
+    end_date TIMESTAMP GENERATED ALWAYS AS (start_date + (duration_months * INTERVAL '1 month')) STORED,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Mystery Box Shipments Table (Ships subscription rewards)
+CREATE TABLE mystery_box_shipments (
+    shipment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    subscription_id UUID REFERENCES user_subscriptions(subscription_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    niche_id UUID REFERENCES subscription_niches(niche_id) ON DELETE CASCADE,
+    shipment_status shipment_status DEFAULT 'pending',
+    tracking_number VARCHAR(50) UNIQUE NULL,
+    courier VARCHAR(100) NULL,
+    shipped_at TIMESTAMP NULL,
+    delivered_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Mystery Box Items Table (Tracks items in mystery boxes)
+CREATE TABLE mystery_box_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    shipment_id UUID REFERENCES mystery_box_shipments(shipment_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE SET NULL,
+    is_custom_keychain BOOLEAN DEFAULT FALSE,
+    is_custom_quote BOOLEAN DEFAULT FALSE
+);
+
+-- Predefined Quotes for Each Niche (Used for custom keychains & surprise messages)
+CREATE TABLE niche_quotes (
+    quote_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    niche_id UUID REFERENCES subscription_niches(niche_id) ON DELETE CASCADE,
+    quote TEXT NOT NULL
+);
+
+-- Payment Transactions Table (Tracks payments per user & order)
+CREATE TABLE payment_transactions (
+    transaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    subscription_id UUID REFERENCES user_subscriptions(subscription_id) ON DELETE CASCADE NULL,
+    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    currency_code VARCHAR(3) REFERENCES currencies(currency_code) DEFAULT 'USD',
+    payment_status payment_status DEFAULT 'pending',
+    payment_method VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE currencies (
+    currency_code VARCHAR(3) PRIMARY KEY, -- e.g., "USD", "EUR", "GBP"
+    currency_name VARCHAR(50) NOT NULL, -- e.g., "US Dollar", "Euro"
+    symbol VARCHAR(5) NOT NULL, -- e.g., "$", "€"
+    conversion_rate DECIMAL(10,4) NOT NULL CHECK (conversion_rate > 0), -- Conversion rate relative to base currency
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Tracks when rates were last updated
+);
+
+-- ##########################################################
+-- #               GROUP 3: E-COMMERCE SYSTEM              #
+-- #  Manages brands, products, categories, carts, orders #
+-- #  & gift purchases.                                   #
+-- ##########################################################
+
+-- Brands Table
+CREATE TABLE brands (
+    brand_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    brand_name VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT
+);
+
+-- Categories Table
+CREATE TABLE categories (
+    category_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    parent_category_id UUID REFERENCES categories(category_id) NULL,
+    path TEXT
+);
+
+-- Category-Product Relationship (Many-to-Many)
+CREATE TABLE category_product (
+    category_id UUID REFERENCES categories(category_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    PRIMARY KEY (category_id, product_id)
+);
+
+-- Products Table
+CREATE TABLE products (
+    product_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    brand_id UUID REFERENCES brands(brand_id) ON DELETE SET NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    base_price DECIMAL(10,2) NOT NULL CHECK (base_price > 0),
+    currency_code VARCHAR(3) REFERENCES currencies(currency_code),
+    is_exclusive BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Product Variations Table (For Size, Color, etc.)
+CREATE TABLE product_variations (
+    variation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    size VARCHAR(50) NULL,
+    color VARCHAR(50) NULL,
+    special_edition VARCHAR(100) NULL,
+    stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
+    additional_price DECIMAL(10,2) DEFAULT 0 CHECK (additional_price >= 0)
+);
+
+-- Shopping Cart Table
+CREATE TABLE shopping_cart (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    product_variation_id UUID REFERENCES product_variations(variation_id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Wishlist Table (Users Can Save Items for Later)
+CREATE TABLE wishlist (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Gift Orders Table (Users Can Buy Gifts for Others)
+CREATE TABLE gift_orders (
+    gift_order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    recipient_email TEXT NOT NULL,
+    recipient_name VARCHAR(100) NOT NULL,
+    total_price DECIMAL(10,2) NOT NULL CHECK (total_price > 0),
+    payment_status payment_status DEFAULT 'pending',
+    message TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Gift Order Items Table (Tracks Items in Gift Orders)
+CREATE TABLE gift_order_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    gift_order_id UUID REFERENCES gift_orders(gift_order_id) ON DELETE CASCADE,
+    product_variation_id UUID REFERENCES product_variations(variation_id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL CHECK (quantity > 0)
+);
+
+-- Gift Cards Table
+CREATE TABLE gift_cards (
+    gift_card_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    sender_id UUID REFERENCES users(user_id),
+    receiver_id UUID REFERENCES users(user_id) NULL,
+    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    is_redeemed BOOLEAN DEFAULT FALSE,
+    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    redeemed_at TIMESTAMP NULL
+);
+
+-- Inventory Management (Stock & Tracking)
+CREATE TABLE inventory (
+    inventory_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_variation_id UUID REFERENCES product_variations(variation_id) ON DELETE CASCADE,
+    stock_quantity INTEGER NOT NULL CHECK (stock_quantity >= 0),
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Stock Levels (Tracks Stock Adjustments)
+CREATE TABLE stock_levels (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_variation_id UUID REFERENCES product_variations(variation_id) ON DELETE CASCADE,
+    change_quantity INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE product_translations (
+    translation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    language VARCHAR(10) NOT NULL, -- e.g., 'en', 'es', 'fr'
+    translated_name VARCHAR(255) NOT NULL,
+    translated_description TEXT NOT NULL
+);
+
+CREATE TABLE category_translations (
+    translation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    category_id UUID REFERENCES categories(category_id) ON DELETE CASCADE,
+    language VARCHAR(10) NOT NULL,
+    translated_name VARCHAR(255) NOT NULL
+);
+
+-- ##########################################################
+-- #                 GROUP 4: ORDERS & BILLING             #
+-- #  Manages customer orders, transactions, shipping,    #
+-- #  and billing details.                                #
+-- ##########################################################
+
+-- ENUM for Order Status
+CREATE TYPE order_status AS ENUM ('pending', 'processing', 'shipped', 'delivered', 'canceled', 'refunded');
+
+-- Orders Table (Tracks User Purchases)
+CREATE TABLE orders (
+    order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    total_price DECIMAL(10,2) NOT NULL CHECK (total_price > 0),
+    currency_code VARCHAR(3) REFERENCES currencies(currency_code),
+    payment_status payment_status DEFAULT 'pending',
+    order_status order_status DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Order Items Table (Tracks Products in Each Order)
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID REFERENCES orders(order_id) ON DELETE CASCADE,
+    product_variation_id UUID REFERENCES product_variations(variation_id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    price_at_purchase DECIMAL(10,2) NOT NULL CHECK (price_at_purchase > 0)
+);
+
+-- Shipping Addresses Table
+CREATE TABLE shipping_addresses (
+    address_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    full_name VARCHAR(255) NOT NULL,
+    street_address TEXT NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    state VARCHAR(100) NOT NULL,
+    postal_code VARCHAR(20) NOT NULL,
+    country VARCHAR(100) NOT NULL,
+    phone_number TEXT NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE
+);
+
+-- Billing Addresses Table (Separate from Shipping)
+CREATE TABLE billing_addresses (
+    address_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    full_name VARCHAR(255) NOT NULL,
+    street_address TEXT NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    state VARCHAR(100) NOT NULL,
+    postal_code VARCHAR(20) NOT NULL,
+    country VARCHAR(100) NOT NULL,
+    phone_number TEXT NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE
+);
+
+-- Order Status Updates (Tracks Order Progress)
+CREATE TABLE order_status_updates (
+    update_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID REFERENCES orders(order_id) ON DELETE CASCADE,
+    previous_status order_status NOT NULL,
+    new_status order_status NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ##########################################################
+-- #                 GROUP 5: SOCIAL FEATURES             #
+-- #  Handles user friendships, messages, reactions,     #
+-- #  blog posts, comments, and notifications.           #
+-- ##########################################################
+
+-- Friendships Table
+CREATE TABLE friends (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    friend_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Friend Requests Table
+CREATE TABLE friend_requests (
+    request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    status VARCHAR(20) CHECK (status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Conversations (Group or 1-on-1 Chats)
+CREATE TABLE conversations (
+    conversation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    is_group_chat BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Conversation Members Table (Users in a Chat)
+CREATE TABLE conversation_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Messages Table (Tracks Messages in Conversations)
+CREATE TABLE messages (
+    message_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    message_text TEXT NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Custom Reaction Sets (Users Can Create Their Own Reaction Packs)
+CREATE TABLE reaction_sets (
+    set_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    set_name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Default Message Reactions (Like, Love, Haha, etc.)
+CREATE TABLE message_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID REFERENCES messages(message_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction TEXT NOT NULL CHECK (reaction IN ('like', 'heart', 'haha', 'sad', 'angry')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Blog Posts (Admin-Only Announcements & Updates)
+CREATE TABLE blog_posts (
+    post_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    author_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Comments on Blog Posts
+CREATE TABLE post_comments (
+    comment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    comment_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Reactions on Blog Posts
+CREATE TABLE post_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction TEXT NOT NULL CHECK (reaction IN ('like', 'heart', 'haha', 'sad', 'angry')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Notifications Table
+CREATE TABLE notifications (
+    notification_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ##########################################################
+-- #              GROUP 6: COMMUNITY & ENGAGEMENT          #
+-- #  Handles user groups, events, live streaming,        #
+-- #  giveaways, and announcements.                       #
+-- ##########################################################
+
+-- User Groups Table (Community-Based Groups)
+CREATE TABLE groups (
+    group_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    group_name VARCHAR(255) UNIQUE NOT NULL,
+    description TEXT,
+    created_by UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Group Members Table
+CREATE TABLE group_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    group_id UUID REFERENCES groups(group_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    role VARCHAR(20) CHECK (role IN ('admin', 'moderator', 'member')) DEFAULT 'member',
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Group Posts Table (For Group Discussions)
+CREATE TABLE group_posts (
+    post_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    group_id UUID REFERENCES groups(group_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Events Table (Online & IRL Events)
+CREATE TABLE events (
+    event_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    event_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    organizer_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    event_date TIMESTAMP NOT NULL,
+    location TEXT NULL, -- Optional for IRL Events
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Event Participants Table
+CREATE TABLE event_participants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    event_id UUID REFERENCES events(event_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Streamers Table (For Approved Streamers)
+CREATE TABLE streamers (
+    streamer_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    is_verified BOOLEAN DEFAULT FALSE
+);
+
+-- Streaming Platforms Table (Tracks Where Streamers Go Live)
+CREATE TABLE streamer_platforms (
+    platform_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    platform_name VARCHAR(100) UNIQUE NOT NULL
+);
+
+-- Stream Schedules Table (Upcoming Streams)
+CREATE TABLE stream_schedules (
+    stream_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    streamer_id UUID REFERENCES streamers(streamer_id) ON DELETE CASCADE,
+    platform_id UUID REFERENCES streamer_platforms(platform_id) ON DELETE CASCADE,
+    stream_title VARCHAR(255) NOT NULL,
+    stream_url TEXT NOT NULL,
+    scheduled_time TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Stream Followers Table (Users Who Follow Streamers)
+CREATE TABLE stream_followers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    streamer_id UUID REFERENCES streamers(streamer_id) ON DELETE CASCADE,
+    follower_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    followed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Giveaways Table (Raffles & Competitions)
+CREATE TABLE giveaways (
+    giveaway_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organizer_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    giveaway_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    max_winners INTEGER NOT NULL CHECK (max_winners > 0),
+    winner_selection_method VARCHAR(20) CHECK (winner_selection_method IN ('first_come', 'random_draw')) DEFAULT 'random_draw',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Giveaway Entries Table
+CREATE TABLE giveaway_entries (
+    entry_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    giveaway_id UUID REFERENCES giveaways(giveaway_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    entered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Giveaway Winners Table
+CREATE TABLE giveaway_winners (
+    winner_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    giveaway_id UUID REFERENCES giveaways(giveaway_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    won_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Announcements Table (Platform-Wide Announcements)
+CREATE TABLE announcements (
+    announcement_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    author_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Reactions on Announcements
+CREATE TABLE announcement_reactions (
+    reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    announcement_id UUID REFERENCES announcements(announcement_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reaction TEXT NOT NULL CHECK (reaction IN ('like', 'heart', 'haha', 'sad', 'angry')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ##########################################################
+-- #               GROUP 7: DONATIONS & REWARDS            #
+-- #  Manages user donations, rewards, badges, and titles #
+-- ##########################################################
+
+-- Donations Table (Tracks User Contributions)
+CREATE TABLE donations (
+    donation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    currency_code VARCHAR(3) REFERENCES currencies(currency_code) DEFAULT 'USD',
+    message TEXT NULL,
+    donated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Donation Goals Table (For Crowdfunding-Like Events)
+CREATE TABLE donation_goals (
+    goal_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    goal_name VARCHAR(255) NOT NULL,
+    target_amount DECIMAL(10,2) NOT NULL CHECK (target_amount > 0),
+    current_amount DECIMAL(10,2) DEFAULT 0 CHECK (current_amount >= 0),
+    deadline TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Reward Tiers Table (For Special Perks Based on Contributions)
+CREATE TABLE reward_tiers (
+    tier_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tier_name VARCHAR(100) NOT NULL,
+    min_donation DECIMAL(10,2) NOT NULL CHECK (min_donation > 0),
+    benefits JSONB DEFAULT '{}' -- Example: { "exclusive_badge": true, "vip_support": true }
+);
+
+-- User Rewards Table (Tracks User Rewards from Donations)
+CREATE TABLE user_rewards (
+    reward_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    tier_id UUID REFERENCES reward_tiers(tier_id) ON DELETE CASCADE,
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User Points System (Loyalty Points for Engagement)
+CREATE TABLE user_points (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    points INTEGER NOT NULL CHECK (points >= 0),
+    earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Badges Table (Special Achievements & Recognition)
+CREATE TABLE badges (
+    badge_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    badge_name VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT NOT NULL
+);
+
+-- User Badges Table (Tracks Earned Badges)
+CREATE TABLE user_badges (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    badge_id UUID REFERENCES badges(badge_id) ON DELETE CASCADE,
+    earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Titles Table (Special User Titles Based on Achievements)
+CREATE TABLE titles (
+    title_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title_name VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT NOT NULL
+);
+
+-- User Titles Table (Tracks Earned Titles)
+CREATE TABLE user_titles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    title_id UUID REFERENCES titles(title_id) ON DELETE CASCADE,
+    earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User Display Preferences (Shows Preferred Title/Badge)
+CREATE TABLE user_display_preferences (
+    user_id UUID PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    selected_title_id UUID REFERENCES titles(title_id) ON DELETE SET NULL,
+    selected_badge_id UUID REFERENCES badges(badge_id) ON DELETE SET NULL
+);
+
+-- ##########################################################
+-- #           GROUP 8: PRODUCT REVIEWS & SUPPORT          #
+-- #  Manages product ratings, user feedback, and         #
+-- #  customer support tickets.                           #
+-- ##########################################################
+
+-- Product Reviews Table (Only Verified Buyers Can Review)
+CREATE TABLE product_reviews (
+    review_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(product_id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), -- 1 to 5 stars
+    review_text TEXT NULL, -- Optional text review
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Review Images Table (Optional User-Uploaded Images for Reviews)
+CREATE TABLE review_images (
+    image_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    review_id UUID REFERENCES product_reviews(review_id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL
+);
+
+-- Support Tickets Table (Users Can Submit Support Requests)
+CREATE TABLE support_tickets (
+    ticket_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    subject VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    status VARCHAR(20) CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')) DEFAULT 'open',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Support Ticket Responses (Admin Replies)
+CREATE TABLE support_ticket_responses (
+    response_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ticket_id UUID REFERENCES support_tickets(ticket_id) ON DELETE CASCADE,
+    admin_id UUID REFERENCES users(user_id) ON DELETE CASCADE, -- Only staff can reply
+    response_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Ticket Attachments (Optional Images for Support Requests)
+CREATE TABLE support_ticket_attachments (
+    attachment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ticket_id UUID REFERENCES support_tickets(ticket_id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL
+);
+
+-- User Feedback Table (General Feedback on the Platform)
+CREATE TABLE user_feedback (
+    feedback_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    feedback_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Surveys Table (For Collecting Structured Feedback)
+CREATE TABLE surveys (
+    survey_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Survey Responses Table (Tracks User Answers)
+CREATE TABLE survey_responses (
+    response_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    survey_id UUID REFERENCES surveys(survey_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    response JSONB NOT NULL, -- Stores answers in JSON format
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ##########################################################
+-- #            GROUP 9: ANALYTICS & REPORTING            #
+-- #  Tracks user behavior, subscription trends, sales,  #
+-- #  and search activity for better decision-making.    #
+-- ##########################################################
+
+-- User Activity Logs Table (Tracks Key User Actions)
+CREATE TABLE user_activity_logs (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    activity_type VARCHAR(255) NOT NULL, -- Example: 'login', 'purchase', 'subscription_renewal'
+    metadata JSONB DEFAULT '{}', -- Stores additional info (e.g., {"product_id": "123", "action": "added_to_cart"})
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Subscription Metrics Table (Tracks Subscription Trends)
+CREATE TABLE subscription_metrics (
+    metric_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    plan_id UUID REFERENCES subscription_plans(plan_id) ON DELETE CASCADE,
+    total_subscribers INTEGER NOT NULL CHECK (total_subscribers >= 0),
+    active_subscribers INTEGER NOT NULL CHECK (active_subscribers >= 0),
+    cancellations INTEGER NOT NULL CHECK (cancellations >= 0),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sales Reports Table (Tracks Revenue & Order Volume)
+CREATE TABLE sales_reports (
+    report_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    total_revenue DECIMAL(15,2) NOT NULL CHECK (total_revenue >= 0),
+    total_orders INTEGER NOT NULL CHECK (total_orders >= 0),
+    best_selling_product UUID REFERENCES products(product_id) NULL,
+    highest_spending_user UUID REFERENCES users(user_id) NULL,
+    report_date DATE NOT NULL UNIQUE
+);
+
+-- User Engagement Stats (Tracks Site Interactions)
+CREATE TABLE user_engagement_stats (
+    engagement_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    pages_viewed INTEGER NOT NULL CHECK (pages_viewed >= 0),
+    time_spent_seconds INTEGER NOT NULL CHECK (time_spent_seconds >= 0),
+    interactions INTEGER NOT NULL CHECK (interactions >= 0),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Search History Table (Tracks What Users Search)
+CREATE TABLE search_history (
+    search_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    search_query TEXT NOT NULL,
+    search_results_count INTEGER NOT NULL CHECK (search_results_count >= 0),
+    searched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Search Queries Table (Aggregates Search Trends)
+CREATE TABLE search_queries (
+    query_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    search_query TEXT UNIQUE NOT NULL,
+    total_searches INTEGER NOT NULL CHECK (total_searches >= 0),
+    last_searched TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ##########################################################
+-- #               GROUP 10: CONTENT MANAGEMENT           #
+-- #  Manages structured content, media uploads, and     #
+-- #  announcements for the platform.                    #
+-- ##########################################################
+
+-- Content Categories Table (Organizes Blog & Announcement Content)
+CREATE TABLE content_categories (
+    category_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    category_name VARCHAR(100) UNIQUE NOT NULL
+);
+
+-- Articles Table (Admin-Only Posts, Announcements, and Updates)
+CREATE TABLE articles (
+    article_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    author_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    category_id UUID REFERENCES content_categories(category_id) ON DELETE SET NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    is_pinned BOOLEAN DEFAULT FALSE, -- Used to pin important posts
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Media Uploads Table (For Images, Videos, and Other Content)
+CREATE TABLE media (
+    media_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    article_id UUID REFERENCES articles(article_id) ON DELETE CASCADE,
+    media_url TEXT NOT NULL, -- Links to uploaded content
+    media_type VARCHAR(50) CHECK (media_type IN ('image', 'video', 'gif'))
+);
+
+CREATE TABLE article_translations (
+    translation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    article_id UUID REFERENCES blog_posts(post_id) ON DELETE CASCADE,
+    language VARCHAR(10) NOT NULL,
+    translated_title VARCHAR(255) NOT NULL,
+    translated_content TEXT NOT NULL
+);
+
+-- ##########################################################
+-- #              GROUP 11: MARKETING & DISCOUNTS         #
+-- #  Manages promotional campaigns, discount codes,     #
+-- #  and user engagement incentives.                    #
+-- ##########################################################
+
+-- Promotions Table (Tracks Active Promotions)
+CREATE TABLE promotions (
+    promotion_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    promotion_name VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    discount_percentage DECIMAL(5,2) NOT NULL CHECK (discount_percentage BETWEEN 1 AND 100),
+    start_date TIMESTAMP NOT NULL,
+    end_date TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Discount Codes Table (Manages Discount Coupons)
+CREATE TABLE discount_codes (
+    code_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    promotion_id UUID REFERENCES promotions(promotion_id) ON DELETE SET NULL,
+    discount_amount DECIMAL(10,2) NOT NULL CHECK (discount_amount > 0),
+    max_usage INTEGER NOT NULL CHECK (max_usage >= 1),
+    current_usage INTEGER DEFAULT 0 CHECK (current_usage >= 0),
+    expiration_date TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User Discount Usage Table (Tracks Who Used Discounts)
+CREATE TABLE user_discount_usage (
+    usage_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    code_id UUID REFERENCES discount_codes(code_id) ON DELETE CASCADE,
+    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ##########################################################
+-- #              GROUP 12: SECURITY & API MONITORING      #
+-- #  Tracks critical system changes, API security, and   #
+-- #  admin/staff actions for compliance and security.    #
+-- ##########################################################
+
+-- Audit Logs Table (Tracks Admin & Staff Actions)
+CREATE TABLE audit_logs (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    action_type VARCHAR(255) NOT NULL, -- Example: 'user_ban', 'price_change', 'role_update'
+    target_id UUID NULL, -- Could be user_id, product_id, etc.
+    details JSONB DEFAULT '{}', -- Stores additional details of the action
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- API Keys Table (For Secure API Access)
+CREATE TABLE api_keys (
+    api_key_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE, -- Only admins/devs can generate API keys
+    key_value TEXT UNIQUE NOT NULL, -- Securely stored hashed API key
+    permissions JSONB DEFAULT '{}', -- Defines API permissions for the key
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- API Usage Logs Table (Tracks API Calls & Requests)
+CREATE TABLE api_usage_logs (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    api_key_id UUID REFERENCES api_keys(api_key_id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL, -- Example: '/v1/users/get'
+    request_method VARCHAR(10) NOT NULL CHECK (request_method IN ('GET', 'POST', 'PUT', 'DELETE')),
+    request_ip VARCHAR(45) NOT NULL,
+    response_status INTEGER NOT NULL,
+    response_time_ms INTEGER NOT NULL, -- Stores request processing time in milliseconds
+    request_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -1,0 +1,212 @@
+-- ############################################################
+-- #                 FUNCTIONS & TRIGGERS                    #
+-- #  Automates translations, security, badges, discounts,   #
+-- #  and login protection.                                  #
+-- ############################################################
+
+-- #############################
+-- # 1️⃣ Automatic Translations #
+-- #############################
+
+-- Automatic Translation Insertion for Products
+CREATE OR REPLACE FUNCTION add_default_product_translation()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO product_translations (product_id, language, translated_name, translated_description)
+    VALUES (NEW.product_id, 'en', NEW.name, NEW.description);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply this trigger to the products table
+CREATE TRIGGER trigger_product_translation
+AFTER INSERT ON products
+FOR EACH ROW
+EXECUTE FUNCTION add_default_product_translation();
+
+-- Automatic Translation for Categories
+CREATE OR REPLACE FUNCTION add_default_category_translation()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO category_translations (category_id, language, translated_name)
+    VALUES (NEW.category_id, 'en', NEW.name);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply this trigger to the categories table
+CREATE TRIGGER trigger_category_translation
+AFTER INSERT ON categories
+FOR EACH ROW
+EXECUTE FUNCTION add_default_category_translation();
+
+-- Automatic Translation for Blog Posts
+CREATE OR REPLACE FUNCTION add_default_article_translation()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO article_translations (article_id, language, translated_title, translated_content)
+    VALUES (NEW.post_id, 'en', NEW.title, NEW.content);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply this trigger to the blog_posts table
+CREATE TRIGGER trigger_article_translation
+AFTER INSERT ON blog_posts
+FOR EACH ROW
+EXECUTE FUNCTION add_default_article_translation();
+
+-- ###########################################
+-- # 2️⃣ Prevent Fake Reviews & Duplicate Reviews #
+-- ###########################################
+
+CREATE OR REPLACE FUNCTION prevent_fake_reviews()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- User must have purchased the product
+    IF NOT EXISTS (SELECT 1 FROM orders o 
+                   JOIN order_items oi ON o.order_id = oi.order_id
+                   WHERE o.user_id = NEW.user_id AND oi.product_id = NEW.product_id) THEN
+        RAISE EXCEPTION 'User must have purchased the product to leave a review.';
+    END IF;
+
+    -- Prevent duplicate reviews
+    IF (SELECT COUNT(*) FROM product_reviews WHERE user_id = NEW.user_id AND product_id = NEW.product_id) > 0 THEN
+        RAISE EXCEPTION 'User has already reviewed this product.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ######################################
+-- # 3️⃣ Auto-Update `last_updated` Timestamp #
+-- ######################################
+
+CREATE OR REPLACE FUNCTION update_last_updated_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.last_updated = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply this trigger to key tables
+CREATE TRIGGER trigger_update_currency_time
+BEFORE UPDATE ON currencies
+FOR EACH ROW
+EXECUTE FUNCTION update_last_updated_column();
+
+CREATE TRIGGER trigger_update_product_time
+BEFORE UPDATE ON products
+FOR EACH ROW
+EXECUTE FUNCTION update_last_updated_column();
+
+CREATE TRIGGER trigger_update_subscription_time
+BEFORE UPDATE ON subscription_plans
+FOR EACH ROW
+EXECUTE FUNCTION update_last_updated_column();
+
+-- #########################################
+-- # 4️⃣ Prevent Duplicate Friend Requests #
+-- #########################################
+
+CREATE OR REPLACE FUNCTION prevent_duplicate_friend_requests()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM friend_requests 
+        WHERE sender_id = NEW.sender_id AND receiver_id = NEW.receiver_id AND status = 'pending'
+    ) THEN
+        RAISE EXCEPTION 'Friend request already sent.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply trigger
+CREATE TRIGGER trigger_check_duplicate_friend_requests
+BEFORE INSERT ON friend_requests
+FOR EACH ROW
+EXECUTE FUNCTION prevent_duplicate_friend_requests();
+
+-- ######################################
+-- # 5️⃣ Auto-Flag Suspicious Logins #
+-- ######################################
+
+CREATE OR REPLACE FUNCTION flag_suspicious_logins()
+RETURNS TRIGGER AS $$
+DECLARE
+    last_country VARCHAR(100);
+BEGIN
+    SELECT country INTO last_country 
+    FROM user_devices 
+    WHERE user_id = NEW.user_id 
+    ORDER BY detected_at DESC LIMIT 1;
+
+    IF last_country IS NOT NULL AND last_country <> NEW.country THEN
+        RAISE NOTICE 'Suspicious login detected for user %: From % to %', NEW.user_id, last_country, NEW.country;
+        -- Optional: Insert into notifications table for user alert
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply to user_devices table (when a new login is detected)
+CREATE TRIGGER trigger_flag_suspicious_logins
+BEFORE INSERT ON user_devices
+FOR EACH ROW
+EXECUTE FUNCTION flag_suspicious_logins();
+
+-- ####################################
+-- # 6️⃣ Auto-Grant Donor Badges #
+-- ####################################
+
+CREATE OR REPLACE FUNCTION auto_grant_donor_badge()
+RETURNS TRIGGER AS $$
+DECLARE
+    total_donations DECIMAL(10,2);
+BEGIN
+    -- Calculate total donations by user
+    SELECT SUM(amount) INTO total_donations 
+    FROM donations 
+    WHERE user_id = NEW.user_id;
+
+    -- Grant VIP badge if total donations exceed 500
+    IF total_donations >= 500 THEN
+        INSERT INTO user_badges (user_id, badge_id, earned_at)
+        SELECT NEW.user_id, (SELECT badge_id FROM badges WHERE badge_name = 'VIP Donor'), NOW()
+        ON CONFLICT (user_id, badge_id) DO NOTHING;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply trigger to donations table
+CREATE TRIGGER trigger_auto_grant_donor_badge
+AFTER INSERT ON donations
+FOR EACH ROW
+EXECUTE FUNCTION auto_grant_donor_badge();
+
+-- ############################################
+-- # 7️⃣ Auto-Disable Discount Codes After Max Usage #
+-- ############################################
+
+CREATE OR REPLACE FUNCTION auto_disable_discount_code()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (SELECT COUNT(*) FROM user_discount_usage WHERE code_id = NEW.code_id) >= 
+       (SELECT max_usage FROM discount_codes WHERE code_id = NEW.code_id) THEN
+        UPDATE discount_codes SET is_active = FALSE WHERE code_id = NEW.code_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply to user_discount_usage table (when a discount is used)
+CREATE TRIGGER trigger_auto_disable_discount_code
+AFTER INSERT ON user_discount_usage
+FOR EACH ROW
+EXECUTE FUNCTION auto_disable_discount_code();
