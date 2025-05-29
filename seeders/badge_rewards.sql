@@ -1,0 +1,4 @@
+-- Badge Rewards Seeder — Zone 25-14 Seeder
+-- Placeholder: Implement after badge system is finalized.
+-- Examples:
+-- INSERT INTO badges (name, description, icon_url) VALUES (...);

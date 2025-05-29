@@ -1,0 +1,2 @@
+-- Auto Disable Discount Codes Trigger Function — Zone 25-14
+-- Placeholder: disables expired or abused promo codes automatically.

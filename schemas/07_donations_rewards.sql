@@ -1,0 +1,2 @@
+-- 07 Donations & Rewards — Zone 25-14 Schema
+-- Placeholder for future: donation history, donor badges, referral bonus, loyalty milestone rewards.

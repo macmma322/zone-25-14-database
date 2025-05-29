@@ -1,0 +1,2 @@
+-- Auto Grant Donor Badge Trigger Function — Zone 25-14
+-- Placeholder: awards badges based on donation thresholds.

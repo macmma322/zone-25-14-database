@@ -1,0 +1,2 @@
+-- Auto Translate Trigger Function — Zone 25-14
+-- Placeholder for auto-translating content on insert/update (future multilingual feature).

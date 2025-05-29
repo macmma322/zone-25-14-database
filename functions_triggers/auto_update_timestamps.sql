@@ -1,0 +1,2 @@
+-- Auto Update Timestamps Trigger Function — Zone 25-14
+-- Placeholder for last_updated / updated_at automation (to be implemented).

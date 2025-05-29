@@ -1,0 +1,2 @@
+-- 08 Reviews & Support — Zone 25-14 Schema
+-- Placeholder for future: product reviews, support tickets, abuse reports, feedback forms.

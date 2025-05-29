@@ -1,90 +1,115 @@
-# 📦 Zone 25-14 Database
+<div id="top">
 
-Welcome to the database core for **Zone 25-14**.  
-This module defines the full relational database structure powering the entire platform, including users, products, loyalty systems, friends system, orders, and much more.
+<!-- HEADER STYLE: CLASSIC -->
+<div align="center">
 
----
 
-## 🧠 About Zone 25-14 Database
+# ZONE-25-14-BACKEND
 
-Zone 25-14 is not just a project —  
-It’s a living, evolving platform built around loyalty, rebellion, and community.
+<em>Empowering connections through seamless user engagement.</em>
 
-This database acts as the **foundational layer** for:
+<!-- BADGES -->
+<img src="https://img.shields.io/github/last-commit/macmma322/zone-25-14-backend?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
+<img src="https://img.shields.io/github/languages/top/macmma322/zone-25-14-backend?style=flat&color=0080ff" alt="repo-top-language">
+<img src="https://img.shields.io/github/languages/count/macmma322/zone-25-14-backend?style=flat&color=0080ff" alt="repo-language-count">
 
-- Authentication & Role Management
-- E-Commerce Systems
-- Loyalty & Leveling Systems
-- Product Management
-- Friends & Messaging Systems
-- Admin Control Systems
+<em>Built with the tools and technologies:</em>
 
----
+<img src="https://img.shields.io/badge/Express-000000.svg?style=flat&logo=Express&logoColor=white" alt="Express">
+<img src="https://img.shields.io/badge/JSON-000000.svg?style=flat&logo=JSON&logoColor=white" alt="JSON">
+<img src="https://img.shields.io/badge/Markdown-000000.svg?style=flat&logo=Markdown&logoColor=white" alt="Markdown">
+<img src="https://img.shields.io/badge/npm-CB3837.svg?style=flat&logo=npm&logoColor=white" alt="npm">
+<img src="https://img.shields.io/badge/.ENV-ECD53F.svg?style=flat&logo=dotenv&logoColor=black" alt=".ENV">
+<img src="https://img.shields.io/badge/JavaScript-F7DF1E.svg?style=flat&logo=JavaScript&logoColor=black" alt="JavaScript">
+<img src="https://img.shields.io/badge/Nodemon-76D04B.svg?style=flat&logo=Nodemon&logoColor=white" alt="Nodemon">
 
-## 🛠️ Technologies Used
-
-- **PostgreSQL** (v14+)
-- **pgcrypto** extension for encryption (`uuid_generate_v4()`, data protection)
-- **SQL Relational Schema**
-- **Manual Scripts & Controlled Evolution**
+</div>
+<br>
 
 ---
 
-## 📋 Database Core Structure
+## Table of Contents
 
-| Table | Purpose |
-|:------|:--------|
-| users | Main user accounts, encrypted data, authentication |
-| user_roles_levels | Role management (Explorer, Supporter, Moderator, Founder, etc.) |
-| products | Main products listed for e-commerce |
-| product_images | Store multiple images for each product |
-| product_variations | Handle size, color, etc. for each product |
-| brands | Brand/Niche linkage (OtakuSquad, WD Crew, etc.) |
-| categories | Product categories and subcategories |
-| orders | Orders placed by users |
-| order_items | Items inside each order |
-| wishlist | User saved/favorite products (planned) |
-| friends | Friendships between users (planned) |
-| messages | User-to-user messaging (planned) |
-| loyalty_points | Level up users based on shopping and activity |
+- [Overview](#overview)
+- [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+    - [Usage](#usage)
+    - [Testing](#testing)
 
 ---
 
-## 🛡️ Security Measures
+## Overview
 
-- Passwords are hashed using bcrypt (`bcryptjs` on backend side).
-- Sensitive fields (email, phone) are encrypted with `pgcrypto`.
-- UUIDs are used for all primary keys for extra security and scaling.
+Zone 25-14 Backend is a powerful API designed to streamline user interactions within a loyalty-driven e-commerce platform. 
+
+**Why zone-25-14-backend?**
+
+This project serves as the central hub for managing user interactions, ensuring secure data handling and role-based access. The core features include:
+
+- 🛡️ **Robust API Management:** Establishes a secure and scalable backend for efficient API management.
+- 🔑 **Comprehensive User Authentication:** Implements JWT-based authentication for secure access control.
+- 🛒 **Dynamic Product and Order Management:** Facilitates seamless product and order processing for enhanced user experience.
+- 💬 **Real-time Messaging Capabilities:** Supports dynamic user interactions through integrated messaging features.
+- 🎁 **Loyalty and Subscription Systems:** Drives user retention with loyalty points and subscription management.
 
 ---
 
-## 📦 How to Setup Database Locally
+## Getting Started
 
-1. Install PostgreSQL (v14+ recommended).
-2. Enable `pgcrypto` extension:
+### Prerequisites
 
-```sql
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+This project requires the following dependencies:
 
-3. Create the database:
+- **Programming Language:** JavaScript
+- **Package Manager:** Npm
 
-``bash
-createdb the_zone_core
+### Installation
 
-4.Run the SQL schema files manually or through a migration tool.
+Build zone-25-14-backend from the source and intsall dependencies:
 
-5.Connection details for local development:
-Parameter | Value
-DB_HOST | localhost
-DB_PORT | 5432
-DB_USER | postgres
-DB_PASSWORD | yourpassword
-DB_NAME | the_zone_core
+1. **Clone the repository:**
 
-## 🔥 Planned Future Upgrades
+    ```sh
+    ❯ git clone https://github.com/macmma322/zone-25-14-backend
+    ```
 
-- Friends and Messaging Systems
-- Donations and Loyalty Reward Titles
-- Public Wishlist / Gift Systems
-- Admin Dashboards and Advanced Permission Trees
-- Subscription System (Mystery Boxes, Exclusive Merch)
+2. **Navigate to the project directory:**
+
+    ```sh
+    ❯ cd zone-25-14-backend
+    ```
+
+3. **Install the dependencies:**
+
+**Using [npm](https://www.npmjs.com/):**
+
+```sh
+❯ npm install
+```
+
+### Usage
+
+Run the project with:
+
+**Using [npm](https://www.npmjs.com/):**
+
+```sh
+npm start
+```
+
+### Testing
+
+Zone-25-14-backend uses the {__test_framework__} test framework. Run the test suite with:
+
+**Using [npm](https://www.npmjs.com/):**
+
+```sh
+npm test
+```
+
+---
+
+<div align="left"><a href="#top">⬆ Return</a></div>
+
+---

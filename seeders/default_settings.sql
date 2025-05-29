@@ -1,0 +1,3 @@
+-- Default Settings Seeder — Zone 25-14 Seeder
+-- Optional global platform configurations
+-- e.g., INSERT INTO settings (key, value) VALUES ('max_wishlist_items', '100');

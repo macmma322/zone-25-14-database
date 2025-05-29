@@ -1,0 +1,3 @@
+-- Currency Seeder — Zone 25-14 Seeder
+-- Placeholder for default currency codes if needed in future:
+-- USD, EUR, GBP, JPY, etc.
