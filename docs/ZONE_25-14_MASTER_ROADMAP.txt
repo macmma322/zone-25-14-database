@@ -1,0 +1,114 @@
+# 🧭 ZONE 25-14: MASTER ROADMAP
+# Generated on 2025-07-03
+# Format: ✅ Completed | ⚒️ In Progress | ⬜ Not Started
+
+# ----------------------------------------
+# PHASE 1 – CORE INFRASTRUCTURE (Database)
+# ----------------------------------------
+✅ Setup PostgreSQL Extensions
+✅ Create ENUM types for roles, statuses, platforms
+✅ Create Users Table (Encrypted fields, roles)
+✅ Create Linked Accounts & Saved Cards
+✅ Create Privacy, Preferences, Notifications
+✅ Define Roles, Levels, Permissions
+✅ Setup Products, Brands, Categories, Variants
+✅ Wishlist, Cart, Orders, Addresses, Payments
+✅ Setup Gift Cards & Gift Orders
+✅ Add Mystery Boxes + Quotes System
+✅ Subscriptions + Bulk Discounts + Auto-renew
+✅ Friends, Friend Requests, Block Duplicate
+✅ Conversations, Messages, Reactions
+✅ Groups, Group Posts
+✅ Events, Giveaways, Winners
+✅ Donations, Badges, Titles
+✅ Announcements, Blogs, Reactions, Comments
+✅ Reviews, Anti-Fake Review Trigger
+✅ Support Tickets + Feedback System
+✅ API Keys, Audit Logs, IP/Device Tracking
+✅ Analytics, Search Logs, Reports
+✅ Auto Translations (Triggers)
+
+# ----------------------------------------
+# PHASE 2 – BACKEND (Node.js + Express)
+# ----------------------------------------
+✅ User Auth: JWT, Cookies, Google OAuth
+✅ Linked Accounts CRUD
+✅ Session, Logout, Context System
+✅ User Controller (Profile, Points, Settings)
+⚒️ Product API (CRUD, Filters, Categories)
+⚒️ Wishlist API (Public/Private Toggle)
+⚒️ Cart + Checkout API (Stripe & Local Pay)
+⚒️ Orders API (Discounts, Address, Shipping)
+⚒️ Subscription API (Plans, Boxes, Duration)
+⚒️ Messaging API (Messages, Reactions, Groups)
+⚒️ Friends API (Add, Accept, Decline, Remove)
+⚒️ Notifications API (Live & Stored)
+⚒️ Blog & Announcement APIs
+⚒️ Admin APIs (Manage products, staff, news)
+
+# ----------------------------------------
+# PHASE 3 – FRONTEND (Next.js + Tailwind)
+# ----------------------------------------
+✅ Auth UI: Login, Register, Google OAuth
+✅ Secure Cookie Token Handling
+✅ Protected Routes & User Context
+✅ Profile Page /profile/[username]
+⚒️ Product Pages: Listing, Detail, Reviews
+⚒️ Cart & Wishlist Pages
+⚒️ Order Summary Page
+⚒️ Public Wishlist (Giftable)
+⚒️ Subscription Plans Page
+⚒️ Mystery Box Tracker
+⚒️ Friends UI: Add, Accept, Search
+⚒️ Chat UI: Reactions, Infinite Scroll, Replies
+⚒️ Group Feed UI
+⚒️ Streamer Profiles & Schedule
+⚒️ Notifications Panel (🔔 Bell)
+⚒️ Admin Panel UI (Product & User Control)
+
+# ----------------------------------------
+# PHASE 4 – SECURITY / PERFORMANCE
+# ----------------------------------------
+✅ Encrypt Email, Phone, Card Info
+✅ Rate Limit Login & Requests
+✅ Suspicious Login Detection
+✅ Block Duplicate Friend Requests
+✅ Prevent Fake Reviews
+✅ Redis Setup (planned)
+⬜ Load Balancing / CI/CD (future)
+
+# ----------------------------------------
+# PHASE 5 – INTELLIGENCE / ANALYTICS
+# ----------------------------------------
+✅ Track Logins, Orders, Activity
+✅ Track Search Terms & Pages Viewed
+⬜ Admin Dashboard Metrics (UI)
+⬜ Heatmap / Engagement Tools
+
+# ----------------------------------------
+# PHASE 6 – MULTILINGUAL + AUDIO IDENTITY
+# ----------------------------------------
+✅ Auto Insert English Translations (Trigger)
+⬜ UI Language Selector (Frontend)
+⬜ Blog/Product Translations Viewer
+⬜ Audio Player / ZoneRadio Stream
+⬜ Music by Niche / Embedded Player
+
+# ----------------------------------------
+# FUTURE MODULES (Beyond MVP)
+# ----------------------------------------
+⬜ Mobile App (React Native or Native)
+⬜ In-App Mini Games / Lootbox Reveal
+⬜ Custom Sound FX for Notifications
+⬜ IRL Pickup Option
+⬜ Affiliate Program & Referral Links
+
+# ----------------------------------------
+# BRAND & STYLE SYSTEM (Completed)
+# ----------------------------------------
+✅ Color Tokens by Niche
+✅ Typography System
+✅ Tailwind Tokens: Radius, Shadows, Z-Index
+✅ Theme Switch: Light / Dark Mode
+✅ Emblem Design In Progress
+✅ Niche Hover Cards & Effects
