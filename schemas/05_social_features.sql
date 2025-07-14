@@ -1,80 +1,113 @@
--- 05 Social Features — Zone 25-14 Schema
+-- ##########################################################
+-- #                  SOCIAL FEATURES CORE                 #
+-- # Friends, Messages, Chat Reactions, Blog Comments      #
+-- ##########################################################
+-- TABLE: Friends
+CREATE TABLE
+	friends (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		friend_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- ENUMS
-CREATE TYPE public."friend_request_status" AS ENUM (
-	'pending',
-	'accepted',
-	'declined',
-	'canceled'
-);
+-- TABLE: Friend Requests
+CREATE TABLE
+	friend_requests (
+		request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		sender_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		receiver_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		status VARCHAR(20) CHECK (status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
-CREATE TYPE public."group_chat_role" AS ENUM (
-	'owner',
-	'admin',
-	'member',
-	'muted',
-	'banned'
-);
+-- TABLE: Conversations (1-on-1 or Group)
+CREATE TABLE
+	conversations (
+		conversation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		is_group_chat BOOLEAN DEFAULT FALSE,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- CONVERSATIONS
-CREATE TABLE public.conversations (
-	conversation_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	is_group bool DEFAULT false NULL,
-	group_name varchar(100) NULL,
-	created_by uuid NULL,
-	created_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT conversations_pkey PRIMARY KEY (conversation_id),
-	CONSTRAINT conversations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id) ON DELETE SET NULL
-);
+-- TABLE: Conversation Members
+CREATE TABLE
+	conversation_members (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		conversation_id UUID REFERENCES conversations (conversation_id) ON DELETE CASCADE,
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- MEMBERS
-CREATE TABLE public.conversation_members (
-	id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	conversation_id uuid NULL,
-	user_id uuid NULL,
-	"role" public."group_chat_role" DEFAULT 'member'::group_chat_role NULL,
-	joined_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT conversation_members_conversation_id_user_id_key UNIQUE (conversation_id, user_id),
-	CONSTRAINT conversation_members_pkey PRIMARY KEY (id),
-	CONSTRAINT conversation_members_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(conversation_id) ON DELETE CASCADE,
-	CONSTRAINT conversation_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
-);
+-- TABLE: Messages
+CREATE TABLE
+	messages (
+		message_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		conversation_id UUID REFERENCES conversations (conversation_id) ON DELETE CASCADE,
+		sender_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		message_text TEXT NOT NULL,
+		is_deleted BOOLEAN DEFAULT FALSE,
+		sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- MESSAGES
-CREATE TABLE public.messages (
-	message_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	conversation_id uuid NULL,
-	sender_id uuid NULL,
-	"content" text NOT NULL,
-	is_deleted bool DEFAULT false NULL,
-	sent_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT messages_pkey PRIMARY KEY (message_id),
-	CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(conversation_id) ON DELETE CASCADE,
-	CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(user_id) ON DELETE CASCADE
-);
+-- TABLE: Default Emoji Reactions
+CREATE TABLE
+	message_reactions (
+		reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		message_id UUID REFERENCES messages (message_id) ON DELETE CASCADE,
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		reaction TEXT NOT NULL CHECK (
+			reaction IN ('like', 'heart', 'haha', 'sad', 'angry')
+		),
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- REACTIONS
-CREATE TABLE public.message_reactions (
-	reaction_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	message_id uuid NULL,
-	user_id uuid NULL,
-	reaction varchar(50) NOT NULL,
-	reacted_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT message_reactions_pkey PRIMARY KEY (reaction_id),
-	CONSTRAINT message_reactions_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(message_id) ON DELETE CASCADE,
-	CONSTRAINT message_reactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
-);
+-- TABLE: Custom Reaction Packs (Planned Feature)
+CREATE TABLE
+	reaction_sets (
+		set_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		set_name VARCHAR(100) NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- MESSAGE REQUESTS
-CREATE TABLE public.message_requests (
-	request_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	sender_id uuid NULL,
-	receiver_id uuid NULL,
-	"content" text NOT NULL,
-	sent_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	status varchar(20) DEFAULT 'pending'::character varying NULL,
-	CONSTRAINT message_requests_pkey PRIMARY KEY (request_id),
-	CONSTRAINT message_requests_status_check CHECK (((status)::text = ANY ((ARRAY['pending', 'accepted', 'declined'])::text[]))),
-	CONSTRAINT message_requests_receiver_id_fkey FOREIGN KEY (receiver_id) REFERENCES public.users(user_id) ON DELETE CASCADE,
-	CONSTRAINT message_requests_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(user_id) ON DELETE CASCADE
-);
+-- TABLE: Blog Posts (Admins Only)
+CREATE TABLE
+	blog_posts (
+		post_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		author_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		title VARCHAR(255) NOT NULL,
+		content TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+-- TABLE: Blog Comments
+CREATE TABLE
+	post_comments (
+		comment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		post_id UUID REFERENCES blog_posts (post_id) ON DELETE CASCADE,
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		comment_text TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+-- TABLE: Blog Post Reactions
+CREATE TABLE
+	post_reactions (
+		reaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		post_id UUID REFERENCES blog_posts (post_id) ON DELETE CASCADE,
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		reaction TEXT NOT NULL CHECK (
+			reaction IN ('like', 'heart', 'haha', 'sad', 'angry')
+		),
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+-- TABLE: Notifications (All-purpose)
+CREATE TABLE
+	notifications (
+		notification_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		message TEXT NOT NULL,
+		is_read BOOLEAN DEFAULT FALSE,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);

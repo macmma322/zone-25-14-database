@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDataSourceStorage">
+    <option name="dataSources">
+      <list>
+        <State>
+          <option name="id" value="3aa3af14-c050-4a90-93e9-7b048bfd4338" />
+          <option name="name" value="postgres@localhost (DDL)" />
+          <option name="dbmsName" value="POSTGRES" />
+          <option name="parent" value="1815ee96-db8d-410e-a618-e145d8ec05b1" />
+          <option name="urls">
+            <array />
+          </option>
+          <option name="outLayout" value="File per object by schema.groovy" />
+        </State>
+      </list>
+    </option>
+  </component>
+</project>

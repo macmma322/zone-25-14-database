@@ -1,7 +1,11 @@
--- 01 User Management — Zone 25-14 Schema
+-- ##########################################################
+-- #               USER MANAGEMENT & AUTH                   #
+-- # Users, Roles, Linked Accounts, Preferences, Security  #
+-- ##########################################################
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ENUM TYPES
-CREATE TYPE public."user_role" AS ENUM (
+-- ENUM: User Roles
+CREATE TYPE user_role AS ENUM (
 	'Explorer',
 	'Supporter',
 	'Elite Member',
@@ -13,83 +17,132 @@ CREATE TYPE public."user_role" AS ENUM (
 	'Founder'
 );
 
--- ROLES LEVELS TABLE
-CREATE TABLE public.user_roles_levels (
-	role_level_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	role_name public."user_role" NOT NULL,
-	required_points int4 DEFAULT 0 NULL,
-	discount_percentage numeric(5, 2) DEFAULT 0.00 NULL,
-	is_staff bool DEFAULT false NULL,
-	permissions jsonb DEFAULT '{}'::jsonb NULL,
-	CONSTRAINT user_roles_levels_discount_percentage_check CHECK (((discount_percentage >= (0)::numeric) AND (discount_percentage <= (100)::numeric))),
-	CONSTRAINT user_roles_levels_pkey PRIMARY KEY (role_level_id),
-	CONSTRAINT user_roles_levels_required_points_check CHECK ((required_points >= 0)),
-	CONSTRAINT user_roles_levels_role_name_key UNIQUE (role_name)
-);
+-- TABLE: Role Definitions
+CREATE TABLE
+	user_roles_levels (
+		role_level_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		role_name user_role UNIQUE NOT NULL,
+		required_points INTEGER DEFAULT 0 CHECK (required_points >= 0),
+		discount_percentage DECIMAL(5, 2) DEFAULT 0 CHECK (
+			discount_percentage >= 0
+			AND discount_percentage <= 100
+		),
+		is_staff BOOLEAN DEFAULT FALSE,
+		permissions JSONB DEFAULT '{}'
+	);
 
--- USERS TABLE
-CREATE TABLE public.users (
-	user_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	username varchar(50) NOT NULL,
-	"password" text NOT NULL,
-	email bytea NOT NULL,
-	phone bytea NULL,
-	first_name varchar(50) NULL,
-	last_name varchar(50) NULL,
-	biography text NULL,
-	profile_picture text NULL,
-	role_level_id uuid NULL,
-	store_credit numeric(10, 2) DEFAULT 0 NULL,
-	created_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	points int4 DEFAULT 0 NULL,
-	birthday date NULL,
-	birthday_reward_year int4 DEFAULT 0 NULL,
-	CONSTRAINT users_pkey PRIMARY KEY (user_id),
-	CONSTRAINT users_points_check CHECK ((points >= 0)),
-	CONSTRAINT users_store_credit_check CHECK ((store_credit >= (0)::numeric)),
-	CONSTRAINT users_username_key UNIQUE (username),
-	CONSTRAINT users_role_level_id_fkey FOREIGN KEY (role_level_id) REFERENCES public.user_roles_levels(role_level_id)
-);
+-- TABLE: Main User Accounts
+CREATE TABLE
+	users (
+		user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		username VARCHAR(50) UNIQUE NOT NULL,
+		password TEXT NOT NULL, -- bcrypt
+		email TEXT UNIQUE NOT NULL,
+		phone TEXT,
+		first_name VARCHAR(50),
+		last_name VARCHAR(50),
+		biography TEXT,
+		profile_picture TEXT,
+		role_level_id UUID REFERENCES user_roles_levels (role_level_id) DEFAULT (
+			SELECT
+				role_level_id
+			FROM
+				user_roles_levels
+			WHERE
+				role_name = 'Explorer'
+		),
+		store_credit DECIMAL(10, 2) DEFAULT 0 CHECK (store_credit >= 0),
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- TRIGGERS
-CREATE TRIGGER encrypt_user_data
-BEFORE INSERT OR UPDATE ON public.users
-FOR EACH ROW
-EXECUTE FUNCTION encrypt_sensitive_data();
+-- TABLE: OAuth / Linked Accounts
+CREATE TABLE
+	linked_accounts (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		platform VARCHAR(50) NOT NULL,
+		username VARCHAR(255) NOT NULL,
+		profile_url TEXT NOT NULL,
+		access_token TEXT,
+		refresh_token TEXT,
+		linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- PRIVACY SETTINGS
-CREATE TABLE public.privacy_settings (
-	user_id uuid NOT NULL,
-	allow_friend_requests bool DEFAULT true NULL,
-	allow_messages bool DEFAULT true NULL,
-	profile_visibility varchar(20) DEFAULT 'public'::character varying NULL,
-	show_wishlist bool DEFAULT true NULL,
-	show_recent_purchases bool DEFAULT true NULL,
-	appear_offline bool DEFAULT false NULL,
-	CONSTRAINT privacy_settings_pkey PRIMARY KEY (user_id),
-	CONSTRAINT privacy_settings_profile_visibility_check CHECK (((profile_visibility)::text = ANY ((ARRAY['public', 'private', 'friends-only'])::text[]))),
-	CONSTRAINT privacy_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
-);
+-- TABLE: Saved Cards (Encrypted)
+CREATE TABLE
+	saved_cards (
+		card_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		encrypted_card_number TEXT NOT NULL,
+		encrypted_expiry_date TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
--- PREFERENCES
-CREATE TABLE public.user_preferences (
-	user_id uuid NOT NULL,
-	theme_mode varchar(20) DEFAULT 'system'::character varying NULL,
-	"language" varchar(10) DEFAULT 'en'::character varying NULL,
-	preferred_currency varchar(3) DEFAULT 'USD'::character varying NULL,
-	email_notifications bool DEFAULT true NULL,
-	CONSTRAINT user_preferences_pkey PRIMARY KEY (user_id),
-	CONSTRAINT user_preferences_theme_mode_check CHECK (((theme_mode)::text = ANY ((ARRAY['light', 'dark', 'system'])::text[]))),
-	CONSTRAINT user_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
-);
+-- TABLE: Privacy Settings
+CREATE TABLE
+	privacy_settings (
+		user_id UUID PRIMARY KEY REFERENCES users (user_id) ON DELETE CASCADE,
+		allow_friend_requests BOOLEAN DEFAULT TRUE,
+		allow_messages BOOLEAN DEFAULT TRUE,
+		profile_visibility VARCHAR(20) CHECK (
+			profile_visibility IN ('public', 'private', 'friends-only')
+		),
+		show_wishlist BOOLEAN DEFAULT TRUE,
+		show_recent_purchases BOOLEAN DEFAULT TRUE,
+		appear_offline BOOLEAN DEFAULT FALSE
+	);
 
--- POINTS LOG
-CREATE TABLE public.user_points (
-	id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	user_id uuid NULL,
-	points int4 NOT NULL,
-	earned_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT user_points_pkey PRIMARY KEY (id),
-	CONSTRAINT user_points_points_check CHECK ((points >= 0)),
-	CONSTRAINT user_points_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
-);
+-- TABLE: User Preferences
+CREATE TABLE
+	user_preferences (
+		user_id UUID PRIMARY KEY REFERENCES users (user_id) ON DELETE CASCADE,
+		theme_mode VARCHAR(20) CHECK (theme_mode IN ('light', 'dark', 'system')) DEFAULT 'system',
+		language VARCHAR(10) DEFAULT 'en',
+		preferred_currency VARCHAR(3) DEFAULT 'USD',
+		email_notifications BOOLEAN DEFAULT TRUE
+	);
+
+-- TABLE: Notification Settings
+CREATE TABLE
+	notification_settings (
+		user_id UUID PRIMARY KEY REFERENCES users (user_id) ON DELETE CASCADE,
+		notify_on_new_message BOOLEAN DEFAULT TRUE,
+		notify_on_friend_request BOOLEAN DEFAULT TRUE,
+		notify_on_announcement BOOLEAN DEFAULT TRUE
+	);
+
+-- TABLE: IP Usage (Anti-Abuse)
+CREATE TABLE
+	ip_usage (
+		ip_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		ip_address VARCHAR(45) NOT NULL,
+		detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+-- TABLE: Login Fail Logs
+CREATE TABLE
+	failed_logins (
+		fail_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		ip_address VARCHAR(45) NOT NULL,
+		attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		reason TEXT NOT NULL CHECK (
+			reason IN (
+				'wrong_password',
+				'account_locked',
+				'suspicious_activity'
+			)
+		)
+	);
+
+-- TABLE: Device Detection
+CREATE TABLE
+	user_devices (
+		device_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		device_fingerprint TEXT NOT NULL,
+		country VARCHAR(100) NOT NULL,
+		city VARCHAR(100) NOT NULL,
+		detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);

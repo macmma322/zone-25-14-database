@@ -1,42 +1,75 @@
--- 04 Orders & Billing — Zone 25-14 Schema
-
-CREATE TABLE public.orders (
-	order_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	user_id uuid NULL,
-	total_price numeric(10, 2) NOT NULL,
-	earned_points int4 DEFAULT 0 NULL,
-	payment_status varchar(50) DEFAULT 'pending'::character varying NULL,
-	order_status varchar(50) DEFAULT 'processing'::character varying NULL,
-	created_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT orders_pkey PRIMARY KEY (order_id),
-	CONSTRAINT orders_total_price_check CHECK ((total_price >= (0)::numeric)),
-	CONSTRAINT orders_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
+-- ##########################################################
+-- #                    ORDERS & BILLING                   #
+-- # Checkout, shipping, billing addresses, order status   #
+-- ##########################################################
+-- ENUM: Order Status
+CREATE TYPE order_status AS ENUM (
+	'pending',
+	'processing',
+	'shipped',
+	'delivered',
+	'canceled',
+	'refunded'
 );
 
-CREATE TABLE public.order_items (
-	item_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	order_id uuid NULL,
-	product_id uuid NULL,
-	variation_id uuid NULL,
-	quantity int4 NOT NULL,
-	price_each numeric(10, 2) NOT NULL,
-	CONSTRAINT order_items_pkey PRIMARY KEY (item_id),
-	CONSTRAINT order_items_price_each_check CHECK ((price_each >= (0)::numeric)),
-	CONSTRAINT order_items_quantity_check CHECK ((quantity > 0)),
-	CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(order_id) ON DELETE CASCADE,
-	CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(product_id) ON DELETE SET NULL,
-	CONSTRAINT order_items_variation_id_fkey FOREIGN KEY (variation_id) REFERENCES public.product_variations(variation_id) ON DELETE SET NULL
-);
+-- TABLE: Orders (Main Purchase Records)
+CREATE TABLE
+	orders (
+		order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		total_price DECIMAL(10, 2) NOT NULL CHECK (total_price > 0),
+		currency_code VARCHAR(3) REFERENCES currencies (currency_code),
+		payment_status payment_status DEFAULT 'pending',
+		order_status order_status DEFAULT 'pending',
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
 
-CREATE TABLE public.shopping_cart (
-	id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	user_id uuid NULL,
-	product_variation_id uuid NULL,
-	quantity int4 NOT NULL,
-	added_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT shopping_cart_pkey PRIMARY KEY (id),
-	CONSTRAINT shopping_cart_quantity_check CHECK ((quantity > 0)),
-	CONSTRAINT unique_cart_item UNIQUE (user_id, product_variation_id),
-	CONSTRAINT shopping_cart_product_variation_id_fkey FOREIGN KEY (product_variation_id) REFERENCES public.product_variations(variation_id) ON DELETE CASCADE,
-	CONSTRAINT shopping_cart_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
-);
+-- TABLE: Order Items (Tracks What Was Bought)
+CREATE TABLE
+	order_items (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		order_id UUID REFERENCES orders (order_id) ON DELETE CASCADE,
+		product_variation_id UUID REFERENCES product_variations (variation_id) ON DELETE CASCADE,
+		quantity INTEGER NOT NULL CHECK (quantity > 0),
+		price_at_purchase DECIMAL(10, 2) NOT NULL CHECK (price_at_purchase > 0)
+	);
+
+-- TABLE: Shipping Addresses
+CREATE TABLE
+	shipping_addresses (
+		address_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		full_name VARCHAR(255) NOT NULL,
+		street_address TEXT NOT NULL,
+		city VARCHAR(100) NOT NULL,
+		state VARCHAR(100) NOT NULL,
+		postal_code VARCHAR(20) NOT NULL,
+		country VARCHAR(100) NOT NULL,
+		phone_number TEXT NOT NULL,
+		is_default BOOLEAN DEFAULT FALSE
+	);
+
+-- TABLE: Billing Addresses (Separate)
+CREATE TABLE
+	billing_addresses (
+		address_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		full_name VARCHAR(255) NOT NULL,
+		street_address TEXT NOT NULL,
+		city VARCHAR(100) NOT NULL,
+		state VARCHAR(100) NOT NULL,
+		postal_code VARCHAR(20) NOT NULL,
+		country VARCHAR(100) NOT NULL,
+		phone_number TEXT NOT NULL,
+		is_default BOOLEAN DEFAULT FALSE
+	);
+
+-- TABLE: Order Status History (For Audit Trail)
+CREATE TABLE
+	order_status_updates (
+		update_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		order_id UUID REFERENCES orders (order_id) ON DELETE CASCADE,
+		previous_status order_status NOT NULL,
+		new_status order_status NOT NULL,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);

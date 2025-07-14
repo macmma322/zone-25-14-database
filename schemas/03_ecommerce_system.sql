@@ -1,68 +1,103 @@
--- 03 Ecommerce System — Zone 25-14 Schema
+-- ##########################################################
+-- #           SCHEMA 02: SUBSCRIPTIONS & PAYMENTS          #
+-- #  Manages subscription niches, plans, user purchases,  #
+-- #  mystery boxes, and transaction records.              #
+-- ##########################################################
+-- ENUM: Billing Cycle
+CREATE TYPE billing_cycle AS ENUM ('monthly', 'quarterly', 'half_yearly', 'yearly');
 
-CREATE TABLE public.brands (
-	brand_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	brand_name varchar(100) NOT NULL,
-	description text NULL,
-	CONSTRAINT brands_brand_name_key UNIQUE (brand_name),
-	CONSTRAINT brands_pkey PRIMARY KEY (brand_id)
-);
+-- ENUM: Payment Status
+CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
 
-CREATE TABLE public.categories (
-	category_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	"name" varchar(100) NOT NULL,
-	parent_category_id uuid NULL,
-	"path" text NULL,
-	CONSTRAINT categories_pkey PRIMARY KEY (category_id),
-	CONSTRAINT categories_parent_category_id_fkey FOREIGN KEY (parent_category_id) REFERENCES public.categories(category_id)
-);
+-- ENUM: Mystery Box Shipment Status
+CREATE TYPE shipment_status AS ENUM ('pending', 'shipped', 'delivered', 'failed');
 
-CREATE TABLE public.products (
-	product_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	brand_id uuid NULL,
-	"name" varchar(100) NOT NULL,
-	description text NULL,
-	base_price numeric(10, 2) NOT NULL,
-	currency_code varchar(3) DEFAULT 'USD'::character varying NULL,
-	is_exclusive bool DEFAULT false NULL,
-	is_active bool DEFAULT true NULL,
-	created_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	exclusive_to_niche varchar(50) NULL,
-	CONSTRAINT products_base_price_check CHECK ((base_price > (0)::numeric)),
-	CONSTRAINT products_pkey PRIMARY KEY (product_id),
-	CONSTRAINT products_brand_id_fkey FOREIGN KEY (brand_id) REFERENCES public.brands(brand_id) ON DELETE SET NULL
-);
+-- TABLE: Subscription Niches
+CREATE TABLE
+	subscription_niches (
+		niche_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		name VARCHAR(100) UNIQUE NOT NULL
+		-- Optional: add theme fields later (dark_color, accent_color, etc.)
+	);
 
-CREATE TABLE public.product_images (
-	image_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	product_id uuid NULL,
-	image_url text NOT NULL,
-	is_main bool DEFAULT false NULL,
-	uploaded_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT product_images_pkey PRIMARY KEY (image_id),
-	CONSTRAINT product_images_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(product_id) ON DELETE CASCADE
-);
+-- TABLE: Subscription Plans
+CREATE TABLE
+	subscription_plans (
+		plan_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		niche_id UUID REFERENCES subscription_niches (niche_id) ON DELETE CASCADE,
+		name VARCHAR(100) NOT NULL,
+		base_price DECIMAL(10, 2) NOT NULL CHECK (base_price > 0),
+		currency_code VARCHAR(3) REFERENCES currencies (currency_code),
+		billing_cycle billing_cycle NOT NULL DEFAULT 'monthly',
+		perks JSONB DEFAULT '{}' -- Example: { "free_shipping": true }
+	);
 
-CREATE TABLE public.product_variations (
-	variation_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	product_id uuid NULL,
-	"size" varchar(50) NULL,
-	color varchar(50) NULL,
-	special_edition varchar(100) NULL,
-	stock_quantity int4 DEFAULT 0 NOT NULL,
-	additional_price numeric(10, 2) DEFAULT 0 NULL,
-	CONSTRAINT product_variations_additional_price_check CHECK ((additional_price >= (0)::numeric)),
-	CONSTRAINT product_variations_pkey PRIMARY KEY (variation_id),
-	CONSTRAINT product_variations_stock_quantity_check CHECK ((stock_quantity >= 0)),
-	CONSTRAINT product_variations_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(product_id) ON DELETE CASCADE
-);
+-- TABLE: User Subscriptions
+CREATE TABLE
+	user_subscriptions (
+		subscription_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		plan_id UUID REFERENCES subscription_plans (plan_id) ON DELETE CASCADE,
+		start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		duration_months INTEGER CHECK (duration_months IN (1, 3, 6, 12)),
+		end_date TIMESTAMP GENERATED ALWAYS AS (
+			start_date + (duration_months * INTERVAL '1 month')
+		) STORED,
+		is_active BOOLEAN DEFAULT TRUE
+	);
 
-CREATE TABLE public.inventory (
-	inventory_id uuid DEFAULT uuid_generate_v4() NOT NULL,
-	product_variation_id uuid NULL,
-	stock_quantity int4 NOT NULL,
-	last_updated timestamp DEFAULT CURRENT_TIMESTAMP NULL,
-	CONSTRAINT inventory_pkey PRIMARY KEY (inventory_id),
-	CONSTRAINT inventory_stock_quantity_check CHECK ((stock_quantity >= 0)),
-	CONSTRAINT inventory_product_variation_id_fkey FOREIGN KEY (product_variation_id) REFERENCES public.product_variations(variation_id) ON DELETE CASCADE
-);
+-- TABLE: Mystery Box Shipments
+CREATE TABLE
+	mystery_box_shipments (
+		shipment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		subscription_id UUID REFERENCES user_subscriptions (subscription_id) ON DELETE CASCADE,
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		niche_id UUID REFERENCES subscription_niches (niche_id) ON DELETE CASCADE,
+		shipment_status shipment_status DEFAULT 'pending',
+		tracking_number VARCHAR(50) UNIQUE,
+		courier VARCHAR(100),
+		shipped_at TIMESTAMP,
+		delivered_at TIMESTAMP,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+-- TABLE: Mystery Box Items
+CREATE TABLE
+	mystery_box_items (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		shipment_id UUID REFERENCES mystery_box_shipments (shipment_id) ON DELETE CASCADE,
+		product_id UUID REFERENCES products (product_id) ON DELETE SET NULL,
+		is_custom_keychain BOOLEAN DEFAULT FALSE,
+		is_custom_quote BOOLEAN DEFAULT FALSE
+	);
+
+-- TABLE: Predefined Niche Quotes
+CREATE TABLE
+	niche_quotes (
+		quote_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		niche_id UUID REFERENCES subscription_niches (niche_id) ON DELETE CASCADE,
+		quote TEXT NOT NULL
+	);
+
+-- TABLE: Currencies (Used Globally)
+CREATE TABLE
+	currencies (
+		currency_code VARCHAR(3) PRIMARY KEY, -- e.g., "USD"
+		currency_name VARCHAR(50) NOT NULL, -- e.g., "US Dollar"
+		symbol VARCHAR(5) NOT NULL, -- e.g., "$"
+		conversion_rate DECIMAL(10, 4) NOT NULL CHECK (conversion_rate > 0),
+		last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+-- TABLE: Payment Transactions
+CREATE TABLE
+	payment_transactions (
+		transaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
+		user_id UUID REFERENCES users (user_id) ON DELETE CASCADE,
+		subscription_id UUID REFERENCES user_subscriptions (subscription_id) ON DELETE CASCADE,
+		amount DECIMAL(10, 2) NOT NULL CHECK (amount > 0),
+		currency_code VARCHAR(3) REFERENCES currencies (currency_code) DEFAULT 'USD',
+		payment_status payment_status DEFAULT 'pending',
+		payment_method VARCHAR(50) NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
